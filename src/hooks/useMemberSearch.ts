@@ -66,8 +66,12 @@ export function useMemberSearch(): UseMemberSearchReturn {
         throw new Error('NEXT_PUBLIC_APPS_SCRIPT_URL is not configured')
       }
       
-      const searchUrl = `${url}?fn=search&branch=${encodeURIComponent(branch.toLowerCase())}&phone=${encodeURIComponent(normalizedPhone)}`
-      const response = await fetch(searchUrl, {
+      const searchUrlBuilder = new URL(url)
+      searchUrlBuilder.searchParams.set('fn', 'search')
+      searchUrlBuilder.searchParams.set('branch', branch.toLowerCase())
+      searchUrlBuilder.searchParams.set('phone', normalizedPhone)
+
+      const response = await fetch(searchUrlBuilder.toString(), {
         method: 'GET',
         mode: 'cors',
         credentials: 'omit',

@@ -381,6 +381,66 @@ function doGet(e) {
 }
 
 /**
+ * Handle schedules request for a specific branch
+ */
+function handleSchedules(branch) {
+  if (!branch) {
+    return createJsonResponse({ ok: false, error: "Branch parameter is missing" }, 400);
+  }
+
+  try {
+    // Try cache first
+    const cacheKey = CacheHelper.getSchedulesCacheKey(branch);
+    let cached = CacheHelper.get(cacheKey);
+    
+    if (cached) {
+      return createJsonResponse({ ok: true, items: cached });
+    }
+    
+    const cfg = getCfg_(branch);
+    const sheet = SpreadsheetApp.openById(cfg.SCHEDULE_SHEET_ID).getSheetByName(cfg.SCHEDULE_SHEET_NAME);
+    if (!sheet) {
+      throw new Error(`Sheet '${cfg.SCHEDULE_SHEET_NAME}' not found in spreadsheet ${cfg.SCHEDULE_SHEET_ID}`);
+    }
+
+    const data = sheet.getDataRange().getValues();
+    if (data.length <= 1) {
+      return createJsonResponse({ ok: true, items: [] });
+    }
+    
+    const headers = data[0];
+    
+    const branchIndex = headers.indexOf('branch');
+    if (branchIndex === -1) {
+      throw new Error("Missing 'branch' column in schedules sheet");
+    }
+
+    const schedules = [];
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      const rowBranch = String(row[branchIndex] || '').toLowerCase();
+      
+      if (rowBranch === branch.toLowerCase()) {
+        const schedule = {};
+        headers.forEach((header, j) => {
+          schedule[header] = row[j];
+        });
+        schedules.push(schedule);
+      }
+    }
+    
+    // Cache for 60 seconds
+    CacheHelper.put(cacheKey, schedules, CACHE_TTL_SCHEDULES);
+
+    return createJsonResponse({ ok: true, items: schedules });
+  } catch (error) {
+    console.error('handleSchedules error:', error);
+    Logger.log(branch, null, 'schedules_error', { error: error.message });
+    return createJsonResponse({ ok: false, error: `Failed to fetch schedules: ${error.message}` }, 500);
+  }
+}
+
+/**
  * Main entry point for POST requests
  */
 function doPost(e) {
@@ -425,200 +485,190 @@ function doOptions(e) {
  * Handle member search by phone number and branch (with caching)
  */
 function handleSearch(branch, phone) {
-  if (!branch || typeof branch !== 'string' || branch.trim().length === 0) {
-    return createJsonResponse({ ok: false, error: "Branch parameter is required" }, 400);
+  if (!branch || !phone) {
+    return createJsonResponse({ ok: false, error: "Branch and phone are required" }, 400);
   }
-  
-  if (!phone || typeof phone !== 'string' || phone.trim().length === 0) {
-    return createJsonResponse({ ok: false, error: "Phone parameter is required" }, 400);
-  }
-  
-  // Extract digits only and validate minimum length
-  const digits = String(phone).replace(/\D/g, '');
-  if (digits.length < 9) {
-    return createJsonResponse({ ok: false, error: "Phone number must be at least 9 digits" }, 400);
-  }
-  
+
   try {
+    const normalizedPhone = normalizePhone_(phone);
+    
+    // Early validation - phone must be at least 9 digits
+    if (normalizedPhone.length < 9) {
+      return createJsonResponse({ ok: false, error: "Phone number too short" }, 400);
+    }
+    
     const cfg = getCfg_(branch);
     
-    // Check if the sheet exists first
-    let sheet;
-    try {
-      sheet = SpreadsheetApp.openById(cfg.LIST_MEMBER_SHEET_ID).getSheetByName(cfg.LIST_MEMBER_SHEET_NAME);
-      if (!sheet) {
-        console.error(`Sheet '${cfg.LIST_MEMBER_SHEET_NAME}' not found in spreadsheet ${cfg.LIST_MEMBER_SHEET_ID}`);
-        return createJsonResponse({ ok: false, error: "Member database not found. Please contact administrator." }, 500);
-      }
-    } catch (sheetError) {
-      console.error('Sheet access error:', sheetError);
-      return createJsonResponse({ ok: false, error: "Unable to access member database. Please contact administrator." }, 500);
-    }
+    // Try cache first for member data
+    const memberCacheKey = `members::${branch.toLowerCase()}`;
+    let memberData = CacheHelper.get(memberCacheKey);
     
-    const data = BatchOperations.readSheetData(cfg.LIST_MEMBER_SHEET_ID, cfg.LIST_MEMBER_SHEET_NAME);
-    
-    if (data.length <= 1) {
-      console.log(`No member data found in sheet '${cfg.LIST_MEMBER_SHEET_NAME}' for branch '${branch}'`);
-      return createJsonResponse({ ok: false, error: "No members found in database" }, 404);
-    }
-    
-    const headers = data[0];
-    console.log('Sheet headers:', headers);
-    
-    // Validate required columns exist
-    const requiredColumns = ['contact', 'member_id', 'name', 'birthdate', 'parent_name', 'branch'];
-    const missingColumns = [];
-    
-    const phoneCol = headers.indexOf('contact');
-    const memberIdCol = headers.indexOf('member_id');
-    const nameCol = headers.indexOf('name');
-    const birthdateCol = headers.indexOf('birthdate');
-    const parentNameCol = headers.indexOf('parent_name');
-    const branchCol = headers.indexOf('branch');
-    
-    if (phoneCol === -1) missingColumns.push('contact');
-    if (memberIdCol === -1) missingColumns.push('member_id');
-    if (nameCol === -1) missingColumns.push('name');
-    if (birthdateCol === -1) missingColumns.push('birthdate');
-    if (parentNameCol === -1) missingColumns.push('parent_name');
-    if (branchCol === -1) missingColumns.push('branch');
-    
-    if (missingColumns.length > 0) {
-      console.error(`Missing required columns in list_member sheet: ${missingColumns.join(', ')}`);
-      return createJsonResponse({ ok: false, error: `Database configuration error: missing columns ${missingColumns.join(', ')}` }, 500);
-    }
-    
-    const normalizedSearchPhone = normalizePhone_(phone);
-    console.log(`Searching for phone: ${phone} -> normalized: ${normalizedSearchPhone} in branch: ${branch}`);
-    
-    let foundMembers = 0;
-    let matchingMembers = [];
-    
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i];
-      const rowPhone = String(row[phoneCol] || '');
-      const rowBranch = String(row[branchCol] || '').toLowerCase();
-      const normalizedRowPhone = normalizePhone_(rowPhone);
-      
-      // Debug logging for phone comparison
-      console.log(`Input=${phone} → normalized=${normalizedSearchPhone}`);
-      console.log(`RowPhone=${rowPhone} → normalized=${normalizedRowPhone}`);
-      console.log(`Match? ${normalizedSearchPhone === normalizedRowPhone}`);
-      console.log(`Branch match? ${rowBranch === branch.toLowerCase()}`);
-      
-      // Count members in this branch for debugging
-      if (rowBranch === branch.toLowerCase()) {
-        foundMembers++;
+    if (!memberData) {
+      const rawData = BatchOperations.readSheetData(cfg.LIST_MEMBER_SHEET_ID, cfg.LIST_MEMBER_SHEET_NAME);
+      if (rawData.length <= 1) {
+        return createJsonResponse({ ok: false, error: "No members found" }, 404);
       }
       
-      // Check both branch and phone match
-      if (rowBranch === branch.toLowerCase() && normalizedSearchPhone === normalizedRowPhone) {
-        const member = {
-          member_id: String(row[memberIdCol] || ''),
-          branch: String(row[branchCol] || ''),
-          name: String(row[nameCol] || ''),
-          birthdate: String(row[birthdateCol] || ''),
-          parent_name: String(row[parentNameCol] || ''),
-          contact: String(row[phoneCol] || '')
-        };
+      // Process and cache member data
+      const headers = rawData[0].map(h => h.toLowerCase());
+      const memberIdCol = headers.indexOf('member_id');
+      const branchCol = headers.indexOf('branch');
+      const nameCol = headers.indexOf('name');
+      const birthdateCol = headers.indexOf('birthdate');
+      const parentNameCol = headers.indexOf('parent_name');
+      const contactCol = headers.indexOf('contact');
+      const registrationStatusCol = headers.indexOf('registration_status');
+      
+      memberData = {
+        headers: headers,
+        columnIndexes: {
+          memberIdCol,
+          branchCol,
+          nameCol,
+          birthdateCol,
+          parentNameCol,
+          contactCol,
+          registrationStatusCol
+        },
+        members: []
+      };
+      
+      // Pre-process and filter by branch
+      for (let i = 1; i < rawData.length; i++) {
+        const row = rawData[i];
+        const rowBranch = String(row[branchCol] || '').toLowerCase();
         
-        console.log(`Member found: ${member.name} (${member.member_id})`);
-        matchingMembers.push(member);
+        if (rowBranch === branch.toLowerCase()) {
+          const contact = String(row[contactCol] || '');
+          memberData.members.push({
+            member_id: String(row[memberIdCol] || ''),
+            branch: String(row[branchCol] || ''),
+            name: String(row[nameCol] || ''),
+            birthdate: String(row[birthdateCol] || ''),
+            parent_name: String(row[parentNameCol] || ''),
+            contact: contact,
+            registration_status: String(row[registrationStatusCol] || ''),
+            normalized_contact: normalizePhone_(contact)
+          });
+        }
+      }
+      
+      // Cache for 2 minutes (shorter cache for more frequent updates)
+      CacheHelper.put(memberCacheKey, memberData, 120);
+    }
+    
+    // Fast search through cached and pre-filtered data
+    const results = [];
+    const exactMatches = [];
+    const partialMatches = [];
+    
+    for (const member of memberData.members) {
+      const memberNormalizedPhone = member.normalized_contact;
+      
+      // Check for exact match first
+      if (memberNormalizedPhone === normalizedPhone) {
+        exactMatches.push(member);
+      }
+      // Check for partial match (member's phone contains search phone or vice versa)
+      else if (memberNormalizedPhone.includes(normalizedPhone) || normalizedPhone.includes(memberNormalizedPhone)) {
+        partialMatches.push(member);
       }
     }
     
-    if (matchingMembers.length > 0) {
-      console.log(`Found ${matchingMembers.length} matching member(s) with phone ${normalizedSearchPhone} in branch ${branch}`);
-      return createJsonResponse({ ok: true, results: matchingMembers, count: matchingMembers.length });
+    // Combine results: exact matches first, then partial matches
+    const allMatches = [...exactMatches, ...partialMatches];
+    
+    // Get existing registrations for all matches
+    for (const member of allMatches) {
+      const existingRegistrations = getExistingRegistrationsCached(member.member_id, branch);
+      
+      results.push({
+        member_id: member.member_id,
+        branch: member.branch,
+        name: member.name,
+        birthdate: member.birthdate,
+        parent_name: member.parent_name,
+        contact: member.contact,
+        registration_status: member.registration_status,
+        existing_registrations: existingRegistrations
+      });
     }
-    
-    console.log(`No member found with phone ${normalizedSearchPhone} in branch ${branch}. Total members in branch: ${foundMembers}`);
-    return createJsonResponse({ ok: false, error: "Member not found" }, 404);
-    
+
+    if (results.length > 0) {
+      return createJsonResponse({ ok: true, results });
+    } else {
+      return createJsonResponse({ ok: false, error: "Member not found" }, 404);
+    }
+
   } catch (error) {
     console.error('handleSearch error:', error);
-    if (error.message.includes('Invalid branch')) {
-      return createJsonResponse({ ok: false, error: error.message }, 400);
-    }
-    if (error.message.includes('not found')) {
-      return createJsonResponse({ ok: false, error: "Member database not accessible" }, 500);
-    }
-    return createJsonResponse({ ok: false, error: "Search failed: " + error.message }, 500);
+    return createJsonResponse({ ok: false, error: "Search failed" }, 500);
   }
 }
 
 /**
- * Handle schedules with caching
+ * Get existing registrations for a member (with caching)
  */
-function handleSchedules(branch) {
-  if (!branch || typeof branch !== 'string' || branch.trim().length === 0) {
-    return createJsonResponse({ ok: false, error: "Branch parameter is required" }, 400);
-  }
-  
+function getExistingRegistrationsCached(memberId, branch) {
   try {
-    // Check cache first
-    const cacheKey = CacheHelper.getSchedulesCacheKey(branch);
-    const cached = CacheHelper.get(cacheKey);
+    // Try cache first
+    const cacheKey = `registrations::${branch.toLowerCase()}::${memberId}`;
+    let cached = CacheHelper.get(cacheKey);
     
     if (cached) {
-      Logger.log(branch, null, 'cache_hit', { type: 'schedules' });
-      return createJsonResponse({ ok: true, items: cached });
+      return cached;
     }
     
-    // Cache miss - read from sheet
-    Logger.log(branch, null, 'cache_miss', { type: 'schedules' });
+    // If not cached, get from sheet
+    const registrations = getExistingRegistrations(memberId, branch);
+    
+    // Cache for 2 minutes (shorter than member data since this changes more frequently)
+    CacheHelper.put(cacheKey, registrations, 120);
+    
+    return registrations;
+    
+  } catch (error) {
+    console.error('getExistingRegistrationsCached error:', error);
+    return [];
+  }
+}
+
+/**
+ * Get existing registrations for a member
+ */
+function getExistingRegistrations(memberId, branch) {
+  try {
     const cfg = getCfg_(branch);
-    const data = BatchOperations.readSheetData(cfg.SCHEDULE_SHEET_ID, cfg.SCHEDULE_SHEET_NAME);
+    const formData = BatchOperations.readSheetData(cfg.FORM_SHEET_ID, cfg.FORM_SHEET_NAME);
     
-    if (data.length <= 1) {
-      return createJsonResponse({ ok: false, error: "No schedules found" }, 404);
+    if (formData.length <= 1) {
+      return [];
     }
     
-    const headers = data[0];
-    const activityIdCol = headers.indexOf('activity_id');
-    const branchCol = headers.indexOf('branch');
-    const classCategoryCol = headers.indexOf('class_category');
+    const headers = formData[0].map(h => h.toLowerCase());
+    const memberIdCol = headers.indexOf('member_id');
     const activityNameCol = headers.indexOf('activity_name');
-    const totalSlotCol = headers.indexOf('total_slot');
-    const bookedSlotCol = headers.indexOf('booked_slot');
-    const availableSlotCol = headers.indexOf('available_slot');
+    const tokenCol = headers.indexOf('token');
     
-    const items = [];
-    
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i];
-      const rowBranch = String(row[branchCol] || '').toLowerCase();
-      
-      if (rowBranch === branch.toLowerCase()) {
-        const totalSlot = parseInt(row[totalSlotCol]) || 0;
-        const bookedSlot = parseInt(row[bookedSlotCol]) || 0;
-        const availableSlot = Math.max(0, totalSlot - bookedSlot);
-        
-        items.push({
-          activity_id: String(row[activityIdCol] || ''),
-          branch: String(row[branchCol] || ''),
-          class_category: String(row[classCategoryCol] || ''),
+    const registrations = [];
+    for (let i = 1; i < formData.length; i++) {
+      const row = formData[i];
+      if (String(row[memberIdCol] || '') === memberId) {
+        registrations.push({
           activity_name: String(row[activityNameCol] || ''),
-          total_slot: totalSlot,
-          booked_slot: bookedSlot,
-          available_slot: availableSlot
+          token: parseInt(row[tokenCol]) || 0
         });
       }
     }
     
-    // Cache the result
-    CacheHelper.put(cacheKey, items, CACHE_TTL_SCHEDULES);
-    
-    return createJsonResponse({ ok: true, items });
+    return registrations;
     
   } catch (error) {
-    console.error('handleSchedules error:', error);
-    if (error.message.includes('Invalid branch')) {
-      return createJsonResponse({ ok: false, error: error.message }, 400);
-    }
-    return createJsonResponse({ ok: false, error: "Failed to load schedules" }, 500);
+    console.error('getExistingRegistrations error:', error);
+    return [];
   }
 }
+
 
 /**
  * Handle status check for queued submissions

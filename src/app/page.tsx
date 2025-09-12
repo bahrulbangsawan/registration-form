@@ -23,6 +23,9 @@ import {
 export default function RegistrationPage() {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null)
+  // Track which token positions have selections (sparse array)
+  const [tokenSelections, setTokenSelections] = useState<(Selection | null)[]>(Array(5).fill(null))
+  
   const { 
     schedules, 
     loading: schedulesLoading, 
@@ -36,18 +39,16 @@ export default function RegistrationPage() {
     setBranch,
     currentBranch
   } = useSchedules()
+  
   const { 
-    selections, 
-    addSelection, 
-    removeSelection, 
-    updateSelection, 
-    clearSelections,
-    getAvailableCategories: getAvailableCategoriesForSelections,
     getCategoryCounts,
     getProgressText,
     canAddMore,
     isValid
   } = useSelections()
+
+  // Get compact selections array (filter out nulls)
+  const selections = tokenSelections.filter((selection): selection is Selection => selection !== null)
 
   const handleMemberSelect = (member: Member, branch: string) => {
     setSelectedMember(member)
@@ -55,44 +56,75 @@ export default function RegistrationPage() {
     if (currentBranch !== branch) {
       setBranch(branch)
     }
-    clearSelections() // Clear any existing selections when changing member
+    setTokenSelections(Array(5).fill(null)) // Clear any existing selections when changing member
   }
 
   const handleMemberClear = () => {
     setSelectedMember(null)
     setSelectedBranch(null)
-    clearSelections()
+    setTokenSelections(Array(5).fill(null))
   }
 
   const handleTokenSelectionChange = (tokenIndex: number, selection: Selection | null) => {
-    if (selection) {
-      if (tokenIndex < selections.length) {
-        // Update existing selection
-        updateSelection(tokenIndex, selection)
-      } else {
-        // Add new selection
-        addSelection(selection)
-      }
-    } else {
-      // Remove selection
-      if (tokenIndex < selections.length) {
-        removeSelection(tokenIndex)
-      }
-    }
+    setTokenSelections(prev => {
+      const newSelections = [...prev]
+      newSelections[tokenIndex] = selection
+      return newSelections
+    })
   }
 
   const handleSubmitSuccess = () => {
     // Optionally clear form after successful submission
     // setSelectedMember(null)
-    // clearSelections()
+    // setTokenSelections(Array(5).fill(null))
   }
 
   // Get available categories considering current selections
   const allAvailableCategories = getAvailableCategories()
-  const availableCategoriesForNewSelections = getAvailableCategoriesForSelections(allAvailableCategories)
+  
+  // Calculate category counts from current selections
+  const categoryCountsMap = new Map<string, number>()
+  selections.forEach(selection => {
+    const current = categoryCountsMap.get(selection.class_category) || 0
+    categoryCountsMap.set(selection.class_category, current + 1)
+  })
+  
+  const availableCategoriesForNewSelections = allAvailableCategories.filter(category => {
+    const count = categoryCountsMap.get(category) || 0
+    return count < 2 // MAX_TOKENS_PER_CATEGORY
+  })
 
-  const categoryCounts = getCategoryCounts()
-  const progressText = getProgressText()
+  const categoryCounts = Array.from(categoryCountsMap.entries()).map(([category, count]) => ({
+    category,
+    count,
+    maxReached: count >= 2
+  }))
+  
+  const progressText = `${selections.length}/5 tokens`
+  
+  // Validation function
+  const isValidSelections = () => {
+    if (selections.length === 0) return false
+    if (selections.length > 5) return false
+    
+    // Check each selection has required fields
+    for (const selection of selections) {
+      if (!selection.class_category || !selection.activity_id || !selection.activity_name) {
+        return false
+      }
+    }
+    
+    // Check category limits
+    const categoryCount = new Map<string, number>()
+    for (const selection of selections) {
+      const current = categoryCount.get(selection.class_category) || 0
+      const newCount = current + 1
+      if (newCount > 2) return false
+      categoryCount.set(selection.class_category, newCount)
+    }
+    
+    return true
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -209,8 +241,9 @@ export default function RegistrationPage() {
                 <div className="grid gap-4 md:grid-cols-2">
                   {Array.from({ length: 5 }, (_, index) => {
                     const tokenNumber = index + 1
-                    const selection = selections[index] || null
-                    const isDisabled = schedulesLoading || !!schedulesError || (!canAddMore() && !selection)
+                    const selection = tokenSelections[index] || undefined // Convert null to undefined
+                    const canAddMore = selections.length < 5
+                    const isDisabled = schedulesLoading || !!schedulesError || (!canAddMore && !selection)
                     
                     return (
                       <TokenSelectionCard
@@ -238,7 +271,7 @@ export default function RegistrationPage() {
               <SubmitCard
                 member={selectedMember}
                 selections={selections}
-                isValid={isValid()}
+                isValid={isValidSelections()}
                 onSubmitSuccess={handleSubmitSuccess}
               />
             </>
