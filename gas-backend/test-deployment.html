@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Apps Script Deployment Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        .info {
+            background-color: #d1ecf1;
+            border-color: #bee5eb;
+            color: #0c5460;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .status {
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .url {
+            word-break: break-all;
+            background-color: #e9ecef;
+            padding: 5px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Google Apps Script Deployment Test</h1>
+        
+        <div class="test-section info">
+            <h3>📍 Testing URL:</h3>
+            <div class="url" id="gas-url">https://script.google.com/macros/s/AKfycbwxEI50wYXD4bMdQReP12I0YWZYv5mja9UH46n0tnJD9URdHzrfetDKEmk5aezdTjXr/exec</div>
+        </div>
+
+        <div class="test-section">
+            <h3>🚀 Quick Tests</h3>
+            <button onclick="runAllTests()">Run All Tests</button>
+            <button onclick="testHealthCheck()">Health Check</button>
+            <button onclick="testSearch()">Search Test</button>
+            <button onclick="testPost()">POST Test</button>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Test Results</h3>
+            <div id="status" class="status">Ready to test...</div>
+            <div id="log" class="log">Click "Run All Tests" to start testing...
+
+💡 This test will help identify why you're getting ERR_ABORTED errors.
+
+Common causes:
+- Google Apps Script not deployed with "Anyone" access
+- Script not properly authorized
+- Browser extensions blocking requests
+- Network/firewall restrictions
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔍 Manual Tests</h3>
+            <p>Try opening these URLs directly in your browser:</p>
+            <ul>
+                <li><a href="https://script.google.com/macros/s/AKfycbwxEI50wYXD4bMdQReP12I0YWZYv5mja9UH46n0tnJD9URdHzrfetDKEmk5aezdTjXr/exec" target="_blank">Health Check</a></li>
+                <li><a href="https://script.google.com/macros/s/AKfycbwxEI50wYXD4bMdQReP12I0YWZYv5mja9UH46n0tnJD9URdHzrfetDKEmk5aezdTjXr/exec?fn=search&branch=bsd&phone=82129505610" target="_blank">Search Test</a></li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h3>📖 Troubleshooting</h3>
+            <p>If tests fail, check:</p>
+            <ul>
+                <li>Google Apps Script deployment settings ("Anyone" access)</li>
+                <li>Script authorization status</li>
+                <li>Browser console for detailed errors</li>
+                <li>Try incognito mode</li>
+                <li>Disable browser extensions temporarily</li>
+                <li>Check network connectivity</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbwxEI50wYXD4bMdQReP12I0YWZYv5mja9UH46n0tnJD9URdHzrfetDKEmk5aezdTjXr/exec';
+        
+        function log(message, type = 'info') {
+            const logElement = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+            logElement.textContent += `\n[${timestamp}] ${prefix} ${message}`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function setStatus(message, type = 'info') {
+            const statusElement = document.getElementById('status');
+            statusElement.textContent = message;
+            statusElement.className = `status ${type}`;
+        }
+        
+        function clearLog() {
+            document.getElementById('log').textContent = 'Log cleared...\n';
+            setStatus('Ready to test...');
+        }
+        
+        async function testHealthCheck() {
+            log('Testing health check...');
+            setStatus('Testing health check...', 'info');
+            
+            try {
+                const response = await fetch(GAS_URL, {
+                    method: 'GET',
+                    mode: 'cors',
+                    redirect: 'follow'
+                });
+                
+                log(`Health check response status: ${response.status}`, 'success');
+                
+                const data = await response.json();
+                log(`Health check data: ${JSON.stringify(data)}`, 'success');
+                
+                if (data.ok) {
+                    setStatus('Health check passed!', 'success');
+                    return true;
+                } else {
+                    setStatus('Health check failed - unexpected response', 'error');
+                    return false;
+                }
+            } catch (error) {
+                log(`Health check failed: ${error.message}`, 'error');
+                setStatus(`Health check failed: ${error.message}`, 'error');
+                return false;
+            }
+        }
+        
+        async function testSearch() {
+            log('Testing search function...');
+            setStatus('Testing search function...', 'info');
+            
+            try {
+                const searchUrl = `${GAS_URL}?fn=search&branch=bsd&phone=82129506`;
+                const response = await fetch(searchUrl, {
+                    method: 'GET',
+                    mode: 'cors',
+                    redirect: 'follow'
+                });
+                
+                log(`Search response status: ${response.status}`, 'success');
+                
+                const data = await response.json();
+                log(`Search data: ${JSON.stringify(data)}`, 'success');
+                
+                setStatus('Search test completed!', 'success');
+                return true;
+            } catch (error) {
+                log(`Search test failed: ${error.message}`, 'error');
+                setStatus(`Search test failed: ${error.message}`, 'error');
+                return false;
+            }
+        }
+        
+        async function testPost() {
+            log('Testing POST request...');
+            setStatus('Testing POST request...', 'info');
+            
+            try {
+                const testPayload = {
+                    member: {
+                        member_id: 'TEST001',
+                        branch: 'bsd',
+                        name: 'Test User',
+                        birthdate: '2000-01-01',
+                        parent_name: 'Test Parent',
+                        contact: '82129506'
+                    },
+                    selections: [],
+                    request_id: 'test-' + Date.now()
+                };
+                
+                const response = await fetch(GAS_URL, {
+                    method: 'POST',
+                    mode: 'cors',
+                    redirect: 'follow',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(testPayload)
+                });
+                
+                log(`POST response status: ${response.status}`, 'success');
+                
+                const data = await response.json();
+                log(`POST data: ${JSON.stringify(data)}`, 'success');
+                
+                setStatus('POST test completed!', 'success');
+                return true;
+            } catch (error) {
+                log(`POST test failed: ${error.message}`, 'error');
+                setStatus(`POST test failed: ${error.message}`, 'error');
+                return false;
+            }
+        }
+        
+        function testBrowserEnvironment() {
+            log('Testing browser environment...');
+            
+            const info = {
+                userAgent: navigator.userAgent,
+                cookieEnabled: navigator.cookieEnabled,
+                onLine: navigator.onLine,
+                language: navigator.language,
+                platform: navigator.platform,
+                protocol: window.location.protocol,
+                host: window.location.host
+            };
+            
+            log(`Browser info: ${JSON.stringify(info, null, 2)}`);
+            
+            // Check for potential blocking extensions
+            if (typeof window.chrome !== 'undefined' && window.chrome.runtime) {
+                log('Chrome extension environment detected', 'error');
+            }
+            
+            // Check for ad blockers
+            const testAd = document.createElement('div');
+            testAd.innerHTML = '&nbsp;';
+            testAd.className = 'adsbox';
+            testAd.style.position = 'absolute';
+            testAd.style.left = '-10000px';
+            document.body.appendChild(testAd);
+            
+            setTimeout(() => {
+                if (testAd.offsetHeight === 0) {
+                    log('Ad blocker detected - may cause ERR_ABORTED', 'error');
+                } else {
+                    log('No ad blocker detected', 'success');
+                }
+                document.body.removeChild(testAd);
+            }, 100);
+        }
+        
+        async function runAllTests() {
+            clearLog();
+            log('Starting Google Apps Script deployment tests...');
+            log(`Testing URL: ${GAS_URL}`);
+            log(`Test started at: ${new Date().toISOString()}`);
+            
+            testBrowserEnvironment();
+            
+            const healthOk = await testHealthCheck();
+            if (healthOk) {
+                await testSearch();
+                await testPost();
+                setStatus('All tests completed successfully!', 'success');
+            } else {
+                setStatus('Tests failed - check deployment settings', 'error');
+            }
+            
+            log('All tests completed!');
+            log('If you see ERR_ABORTED errors, check the troubleshooting guide.');
+        }
+        
+        // Show browser info on load
+        window.addEventListener('load', () => {
+            log('Test page loaded successfully');
+            log(`Current URL: ${window.location.href}`);
+        });
+    </script>
+</body>
+</html>
