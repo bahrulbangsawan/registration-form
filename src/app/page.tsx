@@ -102,15 +102,45 @@ export default function RegistrationPage() {
   
   const progressText = `${selections.length}/5 tokens`
   
-  // Validation function
+  // Enhanced validation function
   const isValidSelections = () => {
     if (selections.length === 0) return false
     if (selections.length > 5) return false
     
-    // Check each selection has required fields
-    for (const selection of selections) {
-      if (!selection.class_category || !selection.activity_id || !selection.activity_name) {
+    // Check each selection has required fields with proper validation
+    for (let i = 0; i < selections.length; i++) {
+      const selection = selections[i]
+      
+      // Validate selection object exists
+      if (!selection || typeof selection !== 'object') {
+        console.error(`Selection ${i + 1} is invalid or missing`)
         return false
+      }
+      
+      // Validate required fields with type checking and trimming
+      const requiredFields = ['class_category', 'activity_id', 'activity_name'] as const
+      for (const field of requiredFields) {
+        const value = selection[field]
+        
+        // Special handling for activity_id which might be a number from backend
+        if (field === 'activity_id') {
+          if (!value || (typeof value !== 'string' && typeof value !== 'number')) {
+            console.error(`Selection ${i + 1} ${field} is required and must be a non-empty string or number. Current value:`, value)
+            return false
+          }
+          // Convert number to string and validate
+          const stringValue = String(value).trim()
+          if (stringValue.length === 0) {
+            console.error(`Selection ${i + 1} ${field} cannot be empty after conversion. Current value:`, value)
+            return false
+          }
+        } else {
+          // Standard string validation for other fields
+          if (!value || typeof value !== 'string' || value.trim().length === 0) {
+            console.error(`Selection ${i + 1} ${field} is required and must be a non-empty string. Current value:`, value)
+            return false
+          }
+        }
       }
     }
     
@@ -119,7 +149,10 @@ export default function RegistrationPage() {
     for (const selection of selections) {
       const current = categoryCount.get(selection.class_category) || 0
       const newCount = current + 1
-      if (newCount > 2) return false
+      if (newCount > 2) {
+        console.error(`Category limit exceeded for ${selection.class_category}: ${newCount}/2`)
+        return false
+      }
       categoryCount.set(selection.class_category, newCount)
     }
     

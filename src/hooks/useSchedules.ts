@@ -75,7 +75,13 @@ export function useSchedules(): UseSchedulesReturn {
         throw new Error(data.error || 'Failed to fetch schedules')
       }
 
-      setSchedules(data.items || [])
+      // Ensure activity_id is always a string to prevent type mismatches
+      const normalizedSchedules = (data.items || []).map((schedule: any) => ({
+        ...schedule,
+        activity_id: String(schedule.activity_id)
+      }))
+
+      setSchedules(normalizedSchedules)
       setLastUpdated(new Date())
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch schedules')

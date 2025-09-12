@@ -61,7 +61,7 @@ export function TokenSelectionCard({
     if (session && selectedCategory) {
       onSelectionChange({
         class_category: selectedCategory,
-        activity_id: activityId,
+        activity_id: String(activityId), // Ensure activity_id is always a string
         activity_name: session.activity_name
       })
     }

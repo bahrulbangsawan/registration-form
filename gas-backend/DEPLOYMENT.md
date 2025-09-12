@@ -4,12 +4,12 @@
 
 1. **Google Account** with access to Google Drive and Google Sheets
 2. **Two Google Sheets** set up with the exact structure:
-   - `form2025` - Registration data storage
-   - `schedule2025` - Activity schedules and availability
+   - `form` - Registration data storage
+   - `schedule` - Activity schedules and availability
 
 ## Sheet Setup
 
-### 1. Create form2025 Sheet
+### 1. Create form Sheet
 
 Create a Google Sheet with these exact column headers in row 1:
 ```
@@ -26,7 +26,7 @@ member_id | branch | name | birthdate | activity_name | parent_name | contact | 
 - `contact`: Contact number
 - `token`: Sequential token number (1-5)
 
-### 2. Create schedule2025 Sheet
+### 2. Create schedule Sheet
 
 Create a Google Sheet with these exact column headers in row 1:
 ```

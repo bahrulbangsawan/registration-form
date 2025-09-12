@@ -97,6 +97,37 @@ export function SubmitCard({ member, selections, isValid, onSubmitSuccess }: Sub
       request_id: requestId
     }
 
+    // Debug logging for payload validation
+    console.log('🔍 Submission Debug Info:', {
+      requestId,
+      memberInfo: {
+        id: member?.member_id,
+        name: member?.name,
+        branch: member?.branch
+      },
+      selectionsCount: selections.length,
+      selections: selections.map((sel, idx) => ({
+        index: idx + 1,
+        class_category: sel.class_category,
+        activity_id: sel.activity_id,
+        activity_name: sel.activity_name,
+        hasAllRequiredFields: !!(sel.class_category && sel.activity_id && sel.activity_name)
+      }))
+    })
+
+    // Validate selections before submission
+    const invalidSelections = selections.filter((sel, idx) => 
+      !sel.class_category || !sel.activity_id || !sel.activity_name
+    )
+    
+    if (invalidSelections.length > 0) {
+      const errorMsg = `Invalid selections detected: ${invalidSelections.map((_, idx) => 
+        `Selection ${selections.indexOf(invalidSelections[idx]) + 1} missing required fields`
+      ).join(', ')}`
+      console.error('❌ Validation Error:', errorMsg)
+      throw new Error(errorMsg)
+    }
+
     const response = await fetch(url, {
       method: 'POST',
       mode: 'cors',
@@ -121,7 +152,29 @@ export function SubmitCard({ member, selections, isValid, onSubmitSuccess }: Sub
   }, [member, selections])
 
   const handleSubmit = async () => {
-    if (!member || !canSubmit) return
+    if (!member || !canSubmit) {
+      console.warn('⚠️ Submit blocked:', {
+        hasMember: !!member,
+        canSubmit,
+        selectionsCount: selections.length,
+        isValid,
+        isSubmitting,
+        isSubmitted,
+        hasExistingRegistration
+      })
+      return
+    }
+
+    // Pre-submission validation and logging
+    console.log('🚀 Starting submission process:', {
+      member: {
+        id: member.member_id,
+        name: member.name,
+        branch: member.branch
+      },
+      selectionsCount: selections.length,
+      isValid
+    })
 
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
@@ -260,9 +313,25 @@ export function SubmitCard({ member, selections, isValid, onSubmitSuccess }: Sub
     }
     
     if (!isValid) {
+      // Check for specific validation issues
+      const incompleteSelections = selections.filter(sel => 
+        !sel.class_category || !sel.activity_id || !sel.activity_name
+      )
+      
+      if (incompleteSelections.length > 0) {
+        const incompleteIndices = selections
+          .map((sel, idx) => (!sel.class_category || !sel.activity_id || !sel.activity_name) ? idx + 1 : null)
+          .filter(idx => idx !== null)
+        
+        return {
+          type: 'error' as const,
+          message: `Incomplete selections detected in Token${incompleteIndices.length > 1 ? 's' : ''} ${incompleteIndices.join(', ')}. Please ensure all required fields (category, activity) are selected.`
+        }
+      }
+      
       return {
         type: 'error' as const,
-        message: 'Please check your selections. Some rules may be violated.'
+        message: 'Please check your selections. Some rules may be violated (e.g., maximum 2 tokens per category).'
       }
     }
     
