@@ -120,7 +120,7 @@ export function PhoneSearchCard({ onMemberSelect, disabled = false }: PhoneSearc
                 value={phoneNumber}
                 onChange={(e) => handlePhoneChange(e.target.value)}
                 disabled={disabled || !selectedBranch}
-                className="pr-10"
+                className="pr-10 h-12 text-base"
                 inputMode="numeric"
               />
               {loading && (
@@ -133,6 +133,7 @@ export function PhoneSearchCard({ onMemberSelect, disabled = false }: PhoneSearc
               onClick={handleSearch}
               disabled={!canSearch || loading || disabled}
               size="default"
+              className="h-12"
             >
               <Search className="h-4 w-4" />
             </Button>
