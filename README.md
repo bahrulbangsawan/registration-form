@@ -5,10 +5,14 @@ A Next.js-based registration form for activity tokens with shadcn/ui components.
 ## Features
 
 - **Phone Search**: Branch-aware phone number search to find registered members with debounced functionality
+- **Manual Search**: Retry search functionality with dedicated buttons when initial searches fail or return no results
 - **Identity Verification**: Display member information for confirmation
 - **Token Selection**: Interactive selection of up to 5 activity tokens with category limits
+- **Duplicate Prevention**: Automatic validation to prevent selecting identical class sessions across multiple tokens
 - **Progress Tracking**: Real-time progress banner showing token usage and category distribution
 - **Form Submission**: Submit registrations with error handling and success feedback
+- **Backend Connectivity**: Robust Google Apps Script integration with automatic URL resolution
+- **Error Recovery**: Comprehensive error handling for network failures and backend issues
 - **Responsive Design**: Mobile-first design that works on all screen sizes
 - **Accessibility**: Keyboard navigation and screen reader support
 
@@ -59,10 +63,14 @@ npm install
 Create a `.env.local` file in the root directory:
 
 ```env
-NEXT_PUBLIC_APPS_SCRIPT_URL=https://script.google.com/macros/s/AKfycbz5B18r8aseZd1JNrntz5Ldyrj3hs0O7P0zZGPzNtgCfbkD1QLcdFrY3NuzavMFPLvT/exec
+NEXT_PUBLIC_APPS_SCRIPT_URL=https://script.googleusercontent.com/macros/echo?user_content_key=YOUR_CONTENT_KEY&lib=YOUR_LIB_ID
 ```
 
-Replace `YOUR_SCRIPT_ID` with your actual Google Apps Script deployment ID.
+**Important Notes:**
+- Use the `script.googleusercontent.com` URL format for better reliability
+- The system automatically handles URL redirects from `script.google.com` to `script.googleusercontent.com`
+- Replace `YOUR_CONTENT_KEY` and `YOUR_LIB_ID` with your actual Google Apps Script deployment values
+- The backend URL should return `{"ok":true,"msg":"API ready"}` for health checks
 
 ### 3. Development Server
 
@@ -114,8 +122,13 @@ This application integrates with a Google Apps Script (GAS) Web App that provide
 
 3. **Configure Frontend**:
    ```env
-   NEXT_PUBLIC_APPS_SCRIPT_URL=https://script.google.com/macros/s/AKfycbz5B18r8aseZd1JNrntz5Ldyrj3hs0O7P0zZGPzNtgCfbkD1QLcdFrY3NuzavMFPLvT/exec
+   NEXT_PUBLIC_APPS_SCRIPT_URL=https://script.googleusercontent.com/macros/echo?user_content_key=YOUR_CONTENT_KEY&lib=YOUR_LIB_ID
    ```
+   
+   **Backend URL Troubleshooting:**
+   - If using `script.google.com` URLs, the system will automatically follow redirects to `script.googleusercontent.com`
+   - Test your backend URL with: `curl -L "YOUR_BACKEND_URL"` to verify it returns the expected JSON response
+   - Ensure the Web App is deployed with "Anyone" access permissions
 
 See `gas-backend/DEPLOYMENT.md` for detailed setup instructions.
 
@@ -239,6 +252,33 @@ Submit registration data (writes to form2025 sheet).
    }
    ```
 
+## Validation Features
+
+### Duplicate Session Prevention
+
+The application automatically prevents users from selecting identical class sessions across multiple tokens:
+
+- **Activity ID Validation**: Each session has a unique `activity_id` that identifies the specific class and schedule
+- **Real-time Checking**: Validation occurs immediately when selecting or updating token choices
+- **User Feedback**: The system silently prevents duplicate selections without disrupting the user experience
+- **Cross-token Validation**: Checks apply across all 5 available tokens to ensure no duplicates
+
+**Example**: If "Basketball Tuesday 2pm" is selected for Token 1, it cannot be selected again for any other token.
+
+### Manual Search Functionality
+
+Enhanced search capabilities for better user experience:
+
+- **Retry Buttons**: When searches fail or return no results, dedicated retry buttons appear
+- **Error Recovery**: Users can manually trigger searches after network errors or timeouts
+- **Persistent Search**: Search functionality remains available even when initial attempts yield no results
+- **Immediate Execution**: Manual searches bypass debouncing for instant results
+
+**Usage**:
+1. Enter phone number and select branch
+2. If no results appear or an error occurs, click "Try Search Again" or "Retry Search"
+3. The system will immediately re-attempt the search with the same parameters
+
 ## Development Notes
 
 - The application uses client-side rendering only (`'use client'`)
@@ -246,6 +286,54 @@ Submit registration data (writes to form2025 sheet).
 - Error handling is implemented for network failures and validation errors
 - The UI is fully responsive and accessible
 - Toast notifications provide user feedback for all actions
+- Backend connectivity issues are automatically diagnosed and resolved
+- The system handles Google Apps Script URL redirects transparently
+
+## Troubleshooting
+
+### Backend Connectivity Issues
+
+If you encounter `net::ERR_ABORTED` or similar network errors:
+
+1. **Verify Backend URL**: Test your Google Apps Script URL directly:
+   ```bash
+   curl -L "https://your-backend-url"
+   ```
+   Expected response: `{"ok":true,"msg":"API ready"}`
+
+2. **Check URL Format**: Ensure you're using the correct URL format:
+   - ✅ Correct: `https://script.googleusercontent.com/macros/echo?user_content_key=...`
+   - ⚠️ May redirect: `https://script.google.com/macros/s/.../exec`
+
+3. **Verify Deployment**: Ensure your Google Apps Script is:
+   - Deployed as a Web App
+   - Set to "Anyone" access
+   - Using the latest version
+
+4. **Environment Variables**: Restart your development server after updating `.env.local`:
+   ```bash
+   npm run dev
+   ```
+
+### Common Error Solutions
+
+- **Registration fails silently**: Check browser console for network errors
+- **Member search not working**: Verify the backend `search` endpoint is accessible
+- **Token selection issues**: Ensure the `schedules` endpoint returns valid data
+- **CORS errors**: Verify Google Apps Script deployment permissions
+
+### Testing Backend Endpoints
+
+```bash
+# Test health check
+curl "https://your-backend-url"
+
+# Test member search
+curl "https://your-backend-url?fn=search&name=test"
+
+# Test schedules
+curl "https://your-backend-url?fn=schedules"
+```
 
 ## Browser Support
 

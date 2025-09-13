@@ -1,19 +1,24 @@
 'use client'
 
+import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { User, Calendar, Phone, MapPin, X, CheckCircle, AlertCircle, Clock } from 'lucide-react'
+import { User, Calendar, Phone, MapPin, X, CheckCircle, AlertCircle, Clock, RefreshCw } from 'lucide-react'
 import { type Member } from '@/hooks'
 
 interface IdentityCardProps {
   member: Member
   onClear?: () => void
   showClearButton?: boolean
+  onMemberUpdate?: (updatedMember: Member) => void
 }
 
-export function IdentityCard({ member, onClear, showClearButton = true }: IdentityCardProps) {
+export function IdentityCard({ member, onClear, showClearButton = true, onMemberUpdate }: IdentityCardProps) {
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false)
+  const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const [statusType, setStatusType] = useState<'success' | 'error' | 'info' | null>(null)
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString)
@@ -38,6 +43,128 @@ export function IdentityCard({ member, onClear, showClearButton = true }: Identi
     return phone
   }
 
+  const checkRegistrationStatus = async () => {
+    if (!member || !onMemberUpdate) return
+    
+    setIsCheckingStatus(true)
+    setStatusMessage(null)
+    setStatusType(null)
+    
+    try {
+      const url = process.env.NEXT_PUBLIC_APPS_SCRIPT_URL
+      if (!url) {
+        throw new Error('Backend URL not configured')
+      }
+      
+      const searchUrl = `${url}?fn=search&branch=${encodeURIComponent(member.branch)}&member_id=${encodeURIComponent(member.member_id)}`
+      
+      const response = await fetch(searchUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        redirect: 'follow',
+        mode: 'cors'
+      })
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      
+      let data
+      try {
+        data = await response.json()
+      } catch (parseError) {
+        throw new Error('Invalid response format from server')
+      }
+      
+      // Safely check response structure
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid response data received')
+      }
+      
+      if (!data.ok) {
+        throw new Error(data.error || 'Failed to fetch registration data')
+      }
+      
+      // Handle both response formats: results array or single member object
+      let updatedMember: Member | undefined
+      
+      try {
+        if (data.results && Array.isArray(data.results)) {
+          // New format: results array
+          updatedMember = data.results.find((result: any) => 
+            result && result.member_id === member.member_id
+          )
+        } else if (data.member && typeof data.member === 'object') {
+          // Old format: single member object
+          updatedMember = data.member
+        }
+      } catch (processingError) {
+        console.warn('Error processing member data:', processingError)
+        setStatusMessage('Received invalid member data format')
+        setStatusType('error')
+        return
+      }
+      
+      if (updatedMember && typeof updatedMember === 'object') {
+        try {
+          onMemberUpdate(updatedMember as Member)
+          
+          // Provide user feedback - safely check for existing_registrations
+          const registrations = updatedMember.existing_registrations
+          if (registrations && Array.isArray(registrations) && registrations.length > 0) {
+            setStatusMessage(`Found ${registrations.length} existing registration(s)`)
+            setStatusType('success')
+          } else {
+            setStatusMessage('No existing registrations found')
+            setStatusType('info')
+          }
+        } catch (updateError) {
+          console.warn('Error updating member data:', updateError)
+          setStatusMessage('Failed to update member information')
+          setStatusType('error')
+        }
+      } else {
+        setStatusMessage('Member data not found in search results')
+        setStatusType('error')
+      }
+      
+    } catch (error) {
+      console.error('Registration status check failed:', error)
+      
+      // Enhanced error handling with specific user-friendly messages
+      let userMessage = 'Failed to check registration status'
+      
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        userMessage = 'Unable to connect to registration server. Please check your internet connection and try again.'
+      } else if (error instanceof Error) {
+        if (error.message.includes('HTTP 404')) {
+          userMessage = 'Registration data service is temporarily unavailable. Please try again later.'
+        } else if (error.message.includes('HTTP 500')) {
+          userMessage = 'Server error occurred. Please contact support if this persists.'
+        } else if (error.message.includes('Backend URL not configured')) {
+          userMessage = 'Service configuration error. Please contact support.'
+        } else if (error.message.includes('timeout') || error.message.includes('TIMEOUT')) {
+          userMessage = 'Request timed out. Please try again.'
+        } else {
+          userMessage = error.message
+        }
+      }
+      
+      setStatusMessage(userMessage)
+      setStatusType('error')
+    } finally {
+      setIsCheckingStatus(false)
+      
+      // Clear status message after 5 seconds
+      setTimeout(() => {
+        setStatusMessage(null)
+        setStatusType(null)
+      }, 5000)
+    }
+  }
+
   return (
     <Card className="w-full">
       <CardHeader>
@@ -46,20 +173,46 @@ export function IdentityCard({ member, onClear, showClearButton = true }: Identi
             <User className="h-5 w-5" />
             <CardTitle>Member Identity</CardTitle>
           </div>
-          {showClearButton && onClear && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClear}
-              className="h-8 w-8 p-0"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {onMemberUpdate && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={checkRegistrationStatus}
+                disabled={isCheckingStatus}
+                className="h-8 px-3"
+              >
+                <RefreshCw className={`h-4 w-4 mr-1 ${isCheckingStatus ? 'animate-spin' : ''}`} />
+                {isCheckingStatus ? 'Checking...' : 'Check Status'}
+              </Button>
+            )}
+            {showClearButton && onClear && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onClear}
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
         <CardDescription>
           Confirm this is the correct member before proceeding
         </CardDescription>
+        {statusMessage && (
+          <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
+            statusType === 'success' ? 'bg-green-50 text-green-800 border border-green-200' :
+            statusType === 'error' ? 'bg-red-50 text-red-800 border border-red-200' :
+            'bg-blue-50 text-blue-800 border border-blue-200'
+          }`}>
+            {statusType === 'success' && <CheckCircle className="h-4 w-4" />}
+            {statusType === 'error' && <AlertCircle className="h-4 w-4" />}
+            {statusType === 'info' && <AlertCircle className="h-4 w-4" />}
+            {statusMessage}
+          </div>
+        )}
       </CardHeader>
       <CardContent>
         <div className="space-y-4">

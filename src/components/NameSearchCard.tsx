@@ -146,7 +146,21 @@ export function PhoneSearchCard({ onMemberSelect, disabled = false }: PhoneSearc
 
         {error && (
           <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>
+              {error}
+              <div className="mt-2">
+                <Button
+                  onClick={handleSearch}
+                  disabled={!canSearch || loading || disabled}
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                >
+                  <Search className="h-4 w-4 mr-2" />
+                  Retry Search
+                </Button>
+              </div>
+            </AlertDescription>
           </Alert>
         )}
 
@@ -162,6 +176,18 @@ export function PhoneSearchCard({ onMemberSelect, disabled = false }: PhoneSearc
           <Alert variant="destructive">
             <AlertDescription>
               No members found with phone number "{formatPhoneDisplay(phoneNumber)}" in {selectedBranch.toUpperCase()} branch. Please check the number or try a different branch.
+              <div className="mt-2">
+                <Button
+                  onClick={handleSearch}
+                  disabled={!canSearch || loading || disabled}
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                >
+                  <Search className="h-4 w-4 mr-2" />
+                  Try Search Again
+                </Button>
+              </div>
             </AlertDescription>
           </Alert>
         )}

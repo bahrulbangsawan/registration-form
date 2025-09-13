@@ -18,6 +18,7 @@ interface TokenSelectionCardProps {
   getSchedulesByCategory: (category: string) => Schedule[]
   onSelectionChange: (selection: Selection | null) => void
   disabled?: boolean
+  selectedActivityIds?: string[] // Array of already selected activity IDs from other tokens
 }
 
 export function TokenSelectionCard({
@@ -28,7 +29,8 @@ export function TokenSelectionCard({
   categoryCounts,
   getSchedulesByCategory,
   onSelectionChange,
-  disabled = false
+  disabled = false,
+  selectedActivityIds = []
 }: TokenSelectionCardProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>(selection?.class_category || '')
   const [selectedSession, setSelectedSession] = useState<string>(selection?.activity_id || '')
@@ -83,6 +85,12 @@ export function TokenSelectionCard({
     const categoryCount = categoryCounts.find(c => c.category === category)
     return categoryCount || { category, count: 0, maxReached: false }
   }
+  
+  // Check if session is selected and only one category slot remains
+  const hasSessionSelected = !!selection?.activity_id
+  const currentCategoryInfo = selection?.class_category ? getCategoryInfo(selection.class_category) : null
+  const onlyOneCategorySlotRemains = !!(currentCategoryInfo && currentCategoryInfo.count === 1 && !currentCategoryInfo.maxReached)
+  const shouldDisableBothSelections = hasSessionSelected && onlyOneCategorySlotRemains
 
   return (
     <Card className={`w-full ${isComplete ? 'ring-2 ring-green-200' : ''}`}>
@@ -128,7 +136,7 @@ export function TokenSelectionCard({
             <Select
               value={selectedCategory}
               onValueChange={handleCategoryChange}
-              disabled={disabled || hasNoCategories}
+              disabled={disabled || hasNoCategories || availableCategories.length === 0 || shouldDisableBothSelections}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select a category..." />
@@ -139,7 +147,14 @@ export function TokenSelectionCard({
                   const availableCount = categorySchedules.length
                   const categoryInfo = getCategoryInfo(category)
                   const isMaxed = categoryInfo.maxReached
-                  const canSelect = !isMaxed || (selection && selection.class_category === category)
+                  
+                  // Check if all sessions in this category are already selected by other tokens
+                  const allSessionsSelected = categorySchedules.every(session => 
+                    selectedActivityIds.includes(session.activity_id)
+                  )
+                  const isCurrentSelection = selection && selection.class_category === category
+                  
+                  const canSelect = (!isMaxed && !allSessionsSelected) || isCurrentSelection
                   
                   return (
                     <SelectItem key={category} value={category} disabled={!canSelect}>
@@ -149,6 +164,10 @@ export function TokenSelectionCard({
                           {isMaxed ? (
                             <Badge variant="destructive" className="text-xs">
                               2/2 Tokens used
+                            </Badge>
+                          ) : allSessionsSelected && !isCurrentSelection ? (
+                            <Badge variant="destructive" className="text-xs">
+                              Already Selected
                             </Badge>
                           ) : (
                             <Badge variant="outline" className="text-xs">
@@ -179,29 +198,51 @@ export function TokenSelectionCard({
               <Select
                 value={selectedSession}
                 onValueChange={handleSessionChange}
-                disabled={disabled || hasNoSessions || !selectedCategory}
+                disabled={disabled || hasNoSessions || !selectedCategory || availableSessions.length === 0 || shouldDisableBothSelections}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a session..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableSessions.map((session) => (
-                    <SelectItem key={session.activity_id} value={session.activity_id} className="py-4">
-                      <div className="space-y-2">
-                        <div className="font-medium">{session.activity_name}</div>
-                        <div className="flex items-center gap-6 text-xs text-gray-500">
-                          <div className="flex items-center gap-1">
-                            <Users className="h-3 w-3" />
-                            <span>{session.available_slot} slots left</span>
+                  {availableSessions.map((session) => {
+                    const isAlreadySelected = selectedActivityIds.includes(session.activity_id)
+                    const isCurrentSelection = selection?.activity_id === session.activity_id
+                    const canSelect = !isAlreadySelected || isCurrentSelection
+                    
+                    return (
+                      <SelectItem 
+                        key={session.activity_id} 
+                        value={session.activity_id} 
+                        className="py-4"
+                        disabled={!canSelect}
+                      >
+                        <div className="space-y-2">
+                          <div className={`font-medium flex items-center gap-2 ${
+                            !canSelect ? 'text-gray-400' : ''
+                          }`}>
+                            {session.activity_name}
+                            {isAlreadySelected && !isCurrentSelection && (
+                              <Badge variant="destructive" className="text-xs">
+                                Already Selected
+                              </Badge>
+                            )}
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            <span>{session.total_slot} total</span>
+                          <div className={`flex items-center gap-6 text-xs ${
+                            !canSelect ? 'text-gray-300' : 'text-gray-500'
+                          }`}>
+                            <div className="flex items-center gap-1">
+                              <Users className="h-3 w-3" />
+                              <span>{session.available_slot} slots left</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              <span>{session.total_slot} total</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </SelectItem>
-                  ))}
+                      </SelectItem>
+                    )
+                  })}
                 </SelectContent>
               </Select>
             )}

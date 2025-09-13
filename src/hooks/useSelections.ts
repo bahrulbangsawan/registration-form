@@ -15,10 +15,11 @@ export interface CategoryCount {
 }
 
 export interface UseSelectionsReturn {
-  selections: Selection[]
+  selections: (Selection | null)[]
   addSelection: (selection: Selection) => boolean
   removeSelection: (index: number) => void
   updateSelection: (index: number, selection: Selection) => boolean
+  setSelectionAtPosition: (index: number, selection: Selection) => boolean
   clearSelections: () => void
   getCategoryCount: (category: string) => number
   isCategoryMaxed: (category: string) => boolean
@@ -33,14 +34,16 @@ const MAX_TOTAL_TOKENS = 5
 const MAX_TOKENS_PER_CATEGORY = 2
 
 export function useSelections(): UseSelectionsReturn {
-  const [selections, setSelections] = useState<Selection[]>([])
+  const [selections, setSelections] = useState<(Selection | null)[]>(Array(MAX_TOTAL_TOKENS).fill(null))
 
   const addSelection = useCallback((selection: Selection): boolean => {
-    if (selections.length >= MAX_TOTAL_TOKENS) {
+    const validSelections = selections.filter(s => s !== null) as Selection[]
+    
+    if (validSelections.length >= MAX_TOTAL_TOKENS) {
       return false
     }
 
-    const categoryCount = selections.filter(
+    const categoryCount = validSelections.filter(
       s => s.class_category === selection.class_category
     ).length
 
@@ -48,17 +51,50 @@ export function useSelections(): UseSelectionsReturn {
       return false
     }
 
-    setSelections(prev => [...prev, selection])
+    // Check for duplicate session (same activity_id)
+    const isDuplicate = validSelections.some(
+      s => s.activity_id === selection.activity_id
+    )
+
+    if (isDuplicate) {
+      return false
+    }
+
+    // Find first available slot
+    const firstEmptyIndex = selections.findIndex(s => s === null)
+    if (firstEmptyIndex === -1) {
+      return false
+    }
+
+    setSelections(prev => {
+      const newSelections = [...prev]
+      newSelections[firstEmptyIndex] = selection
+      return newSelections
+    })
     return true
   }, [selections])
 
   const removeSelection = useCallback((index: number) => {
-    setSelections(prev => prev.filter((_, i) => i !== index))
+    setSelections(prev => {
+      const newSelections = [...prev]
+      newSelections[index] = null
+      return newSelections
+    })
   }, [])
 
   const updateSelection = useCallback((index: number, selection: Selection): boolean => {
     const currentSelection = selections[index]
     if (!currentSelection) return false
+
+    // Check for duplicate session (same activity_id) excluding current selection
+    const otherSelections = selections.filter((s, i) => i !== index && s !== null) as Selection[]
+    const isDuplicate = otherSelections.some(
+      s => s.activity_id === selection.activity_id
+    )
+
+    if (isDuplicate) {
+      return false
+    }
 
     // If category is the same, just update
     if (currentSelection.class_category === selection.class_category) {
@@ -67,7 +103,6 @@ export function useSelections(): UseSelectionsReturn {
     }
 
     // If category is different, check if new category has space
-    const otherSelections = selections.filter((_, i) => i !== index)
     const newCategoryCount = otherSelections.filter(
       s => s.class_category === selection.class_category
     ).length
@@ -81,11 +116,11 @@ export function useSelections(): UseSelectionsReturn {
   }, [selections])
 
   const clearSelections = useCallback(() => {
-    setSelections([])
+    setSelections(Array(MAX_TOTAL_TOKENS).fill(null))
   }, [])
 
   const getCategoryCount = useCallback((category: string): number => {
-    return selections.filter(s => s.class_category === category).length
+    return selections.filter(s => s !== null && s.class_category === category).length
   }, [selections])
 
   const isCategoryMaxed = useCallback((category: string): boolean => {
@@ -100,8 +135,10 @@ export function useSelections(): UseSelectionsReturn {
     const categoryMap = new Map<string, number>()
     
     selections.forEach(selection => {
-      const current = categoryMap.get(selection.class_category) || 0
-      categoryMap.set(selection.class_category, current + 1)
+      if (selection !== null) {
+        const current = categoryMap.get(selection.class_category) || 0
+        categoryMap.set(selection.class_category, current + 1)
+      }
     })
 
     return Array.from(categoryMap.entries()).map(([category, count]) => ({
@@ -112,7 +149,8 @@ export function useSelections(): UseSelectionsReturn {
   }, [selections])
 
   const getProgressText = useCallback((): string => {
-    const totalText = `${selections.length}/${MAX_TOTAL_TOKENS} tokens`
+    const validSelections = selections.filter(s => s !== null)
+    const totalText = `${validSelections.length}/${MAX_TOTAL_TOKENS} tokens`
     const categoryCounts = getCategoryCounts()
     
     if (categoryCounts.length === 0) {
@@ -127,15 +165,17 @@ export function useSelections(): UseSelectionsReturn {
   }, [selections, getCategoryCounts])
 
   const canAddMore = useCallback((): boolean => {
-    return selections.length < MAX_TOTAL_TOKENS
+    const validSelections = selections.filter(s => s !== null)
+    return validSelections.length < MAX_TOTAL_TOKENS
   }, [selections])
 
   const isValid = useCallback((): boolean => {
-    if (selections.length === 0) return false
-    if (selections.length > MAX_TOTAL_TOKENS) return false
+    const validSelections = selections.filter(s => s !== null) as Selection[]
+    if (validSelections.length === 0) return false
+    if (validSelections.length > MAX_TOTAL_TOKENS) return false
 
     const categoryMap = new Map<string, number>()
-    for (const selection of selections) {
+    for (const selection of validSelections) {
       const current = categoryMap.get(selection.class_category) || 0
       const newCount = current + 1
       if (newCount > MAX_TOKENS_PER_CATEGORY) return false
@@ -145,11 +185,50 @@ export function useSelections(): UseSelectionsReturn {
     return true
   }, [selections])
 
+  const setSelectionAtPosition = useCallback((index: number, selection: Selection): boolean => {
+    if (index < 0 || index >= MAX_TOTAL_TOKENS) {
+      return false
+    }
+
+    const validSelections = selections.filter((s, i) => s !== null && i !== index) as Selection[]
+    
+    // Check total limit
+    if (validSelections.length >= MAX_TOTAL_TOKENS) {
+      return false
+    }
+
+    // Check category limit
+    const categoryCount = validSelections.filter(
+      s => s.class_category === selection.class_category
+    ).length
+
+    if (categoryCount >= MAX_TOKENS_PER_CATEGORY) {
+      return false
+    }
+
+    // Check for duplicate session
+    const isDuplicate = validSelections.some(
+      s => s.activity_id === selection.activity_id
+    )
+
+    if (isDuplicate) {
+      return false
+    }
+
+    setSelections(prev => {
+      const newSelections = [...prev]
+      newSelections[index] = selection
+      return newSelections
+    })
+    return true
+  }, [selections])
+
   return {
     selections,
     addSelection,
     removeSelection,
     updateSelection,
+    setSelectionAtPosition,
     clearSelections,
     getCategoryCount,
     isCategoryMaxed,

@@ -18,7 +18,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
         } as React.CSSProperties
       }
       toastOptions={{
-        className: "[&_[data-description]]:text-black [&_[data-description]]:opacity-100",
+        className: "[&_[data-title]]:text-gray-900 [&_[data-title]]:font-semibold [&_[data-description]]:text-gray-800 [&_[data-description]]:opacity-100 [&_[data-description]]:font-medium",
       }}
       {...props}
     />

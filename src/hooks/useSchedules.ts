@@ -69,22 +69,83 @@ export function useSchedules(): UseSchedulesReturn {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      const data = await response.json()
+      let data
+      try {
+        data = await response.json()
+      } catch (parseError) {
+        throw new Error('Invalid response format from server')
+      }
+      
+      // Safely check response structure
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid response data received')
+      }
       
       if (!data.ok) {
         throw new Error(data.error || 'Failed to fetch schedules')
       }
 
-      // Ensure activity_id is always a string to prevent type mismatches
-      const normalizedSchedules = (data.items || []).map((schedule: any) => ({
-        ...schedule,
-        activity_id: String(schedule.activity_id)
-      }))
+      // Safely process schedules data with fallbacks
+      try {
+        const rawItems = data.items || []
+        if (!Array.isArray(rawItems)) {
+          console.warn('Schedules data is not an array, using empty array')
+          setSchedules([])
+          setLastUpdated(new Date())
+          return
+        }
 
-      setSchedules(normalizedSchedules)
-      setLastUpdated(new Date())
+        // Ensure activity_id is always a string and validate required fields
+        const normalizedSchedules = rawItems
+          .filter((schedule: any) => {
+            // Filter out invalid schedule objects
+            return schedule && 
+                   typeof schedule === 'object' && 
+                   schedule.activity_id && 
+                   schedule.activity_name
+          })
+          .map((schedule: any) => ({
+            activity_id: String(schedule.activity_id || ''),
+            branch: String(schedule.branch || ''),
+            class_category: String(schedule.class_category || ''),
+            activity_name: String(schedule.activity_name || ''),
+            total_slot: Number(schedule.total_slot) || 0,
+            booked_slot: Number(schedule.booked_slot) || 0,
+            available_slot: Number(schedule.available_slot) || 0
+          }))
+
+        setSchedules(normalizedSchedules)
+        setLastUpdated(new Date())
+      } catch (processingError) {
+        console.warn('Error processing schedules data:', processingError)
+        // Set empty schedules instead of throwing to prevent app crash
+        setSchedules([])
+        setLastUpdated(new Date())
+        throw new Error('Received invalid schedules data format')
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch schedules')
+      console.error('Schedules fetch failed:', err)
+      
+      // Enhanced error handling with specific user-friendly messages
+      let userMessage = 'Failed to load activity schedules'
+      
+      if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+        userMessage = 'Unable to connect to server. Please check your internet connection and try again.'
+      } else if (err instanceof Error) {
+        if (err.message.includes('HTTP 404')) {
+          userMessage = 'Schedule data is temporarily unavailable. Please try again later.'
+        } else if (err.message.includes('HTTP 500')) {
+          userMessage = 'Server error occurred while loading schedules. Please contact support if this persists.'
+        } else if (err.message.includes('NEXT_PUBLIC_APPS_SCRIPT_URL is not configured')) {
+          userMessage = 'Service configuration error. Please contact support.'
+        } else if (err.message.includes('timeout') || err.message.includes('TIMEOUT')) {
+          userMessage = 'Request timed out while loading schedules. Please try again.'
+        } else {
+          userMessage = err.message
+        }
+      }
+      
+      setError(userMessage)
     } finally {
       if (isInitialLoad) {
         setLoading(false)

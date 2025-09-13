@@ -23,8 +23,6 @@ import {
 export default function RegistrationPage() {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null)
-  // Track which token positions have selections (sparse array)
-  const [tokenSelections, setTokenSelections] = useState<(Selection | null)[]>(Array(5).fill(null))
   
   const { 
     schedules, 
@@ -41,14 +39,20 @@ export default function RegistrationPage() {
   } = useSchedules()
   
   const { 
+    selections,
+    addSelection,
+    updateSelection,
+    removeSelection,
+    setSelectionAtPosition,
+    clearSelections,
     getCategoryCounts,
     getProgressText,
     canAddMore,
     isValid
   } = useSelections()
 
-  // Get compact selections array (filter out nulls)
-  const selections = tokenSelections.filter((selection): selection is Selection => selection !== null)
+  // selections is now already a sparse array that maintains token positions
+  const tokenSelections = selections
 
   const handleMemberSelect = (member: Member, branch: string) => {
     setSelectedMember(member)
@@ -56,21 +60,44 @@ export default function RegistrationPage() {
     if (currentBranch !== branch) {
       setBranch(branch)
     }
-    setTokenSelections(Array(5).fill(null)) // Clear any existing selections when changing member
+    clearSelections() // Clear any existing selections when changing member
   }
 
   const handleMemberClear = () => {
     setSelectedMember(null)
     setSelectedBranch(null)
-    setTokenSelections(Array(5).fill(null))
+    clearSelections()
+  }
+
+  const handleMemberUpdate = (updatedMember: Member) => {
+    setSelectedMember(updatedMember)
   }
 
   const handleTokenSelectionChange = (tokenIndex: number, selection: Selection | null) => {
-    setTokenSelections(prev => {
-      const newSelections = [...prev]
-      newSelections[tokenIndex] = selection
-      return newSelections
-    })
+    const currentSelection = selections[tokenIndex]
+    
+    if (selection === null) {
+      // Remove selection
+      if (currentSelection) {
+        removeSelection(tokenIndex)
+      }
+      return
+    }
+    
+    if (currentSelection) {
+      // Update existing selection
+      const success = updateSelection(tokenIndex, selection)
+      if (!success) {
+        // Show user feedback that the selection was rejected due to duplicate
+        console.warn('Cannot select the same session for multiple tokens')
+      }
+    } else {
+      // Add new selection at specific token position
+      const success = setSelectionAtPosition(tokenIndex, selection)
+      if (!success) {
+        console.warn('Cannot add selection - limits reached or duplicate')
+      }
+    }
   }
 
   const handleSubmitSuccess = () => {
@@ -85,8 +112,10 @@ export default function RegistrationPage() {
   // Calculate category counts from current selections
   const categoryCountsMap = new Map<string, number>()
   selections.forEach(selection => {
-    const current = categoryCountsMap.get(selection.class_category) || 0
-    categoryCountsMap.set(selection.class_category, current + 1)
+    if (selection !== null) {
+      const current = categoryCountsMap.get(selection.class_category) || 0
+      categoryCountsMap.set(selection.class_category, current + 1)
+    }
   })
   
   const availableCategoriesForNewSelections = allAvailableCategories.filter(category => {
@@ -104,14 +133,15 @@ export default function RegistrationPage() {
   
   // Enhanced validation function
   const isValidSelections = () => {
-    if (selections.length === 0) return false
-    if (selections.length > 5) return false
+    const validSelections = selections.filter(s => s !== null)
+    if (validSelections.length === 0) return false
+    if (validSelections.length > 5) return false
     
-    // Check each selection has required fields with proper validation
-    for (let i = 0; i < selections.length; i++) {
-      const selection = selections[i]
+    // Check each valid selection has required fields with proper validation
+    for (let i = 0; i < validSelections.length; i++) {
+      const selection = validSelections[i]
       
-      // Validate selection object exists
+      // Validate selection object exists (should always be true after filtering)
       if (!selection || typeof selection !== 'object') {
         console.error(`Selection ${i + 1} is invalid or missing`)
         return false
@@ -146,7 +176,7 @@ export default function RegistrationPage() {
     
     // Check category limits
     const categoryCount = new Map<string, number>()
-    for (const selection of selections) {
+    for (const selection of validSelections) {
       const current = categoryCount.get(selection.class_category) || 0
       const newCount = current + 1
       if (newCount > 2) {
@@ -186,6 +216,7 @@ export default function RegistrationPage() {
               <IdentityCard 
                 member={selectedMember}
                 onClear={handleMemberClear}
+                onMemberUpdate={handleMemberUpdate}
               />
             </>
           )}
@@ -195,7 +226,7 @@ export default function RegistrationPage() {
             <>
               <Separator />
               <ProgressBanner
-                totalTokens={selections.length}
+                totalTokens={selections.filter(s => s !== null).length}
                 maxTokens={5}
                 categoryCounts={categoryCounts}
                 progressText={progressText}
@@ -275,8 +306,14 @@ export default function RegistrationPage() {
                   {Array.from({ length: 5 }, (_, index) => {
                     const tokenNumber = index + 1
                     const selection = tokenSelections[index] || undefined // Convert null to undefined
-                    const canAddMore = selections.length < 5
+                    const canAddMore = selections.filter(s => s !== null).length < 5
                     const isDisabled = schedulesLoading || !!schedulesError || (!canAddMore && !selection)
+                    
+                    // Get activity IDs from other tokens (excluding current token)
+                    const selectedActivityIds = tokenSelections
+                      .filter((_, i) => i !== index) // Exclude current token
+                      .map(sel => sel?.activity_id)
+                      .filter(Boolean) as string[]
                     
                     return (
                       <TokenSelectionCard
@@ -289,6 +326,7 @@ export default function RegistrationPage() {
                         getSchedulesByCategory={getSchedulesByCategory}
                         onSelectionChange={(newSelection) => handleTokenSelectionChange(index, newSelection)}
                         disabled={isDisabled}
+                        selectedActivityIds={selectedActivityIds}
                       />
                     )
                   })}
@@ -303,7 +341,7 @@ export default function RegistrationPage() {
               <Separator />
               <SubmitCard
                 member={selectedMember}
-                selections={selections}
+                selections={selections.filter(s => s !== null) as Selection[]}
                 isValid={isValidSelections()}
                 onSubmitSuccess={handleSubmitSuccess}
               />

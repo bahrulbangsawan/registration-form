@@ -39,6 +39,34 @@ const QUOTA_DAILY_READS = 100000;
 const QUOTA_DAILY_WRITES = 20000;
 
 /**
+ * Format date to ISO 8601 (YYYY-MM-DD) format
+ */
+function formatDateToISO_(dateValue) {
+  if (!dateValue) return '';
+  
+  // If it's already a string in YYYY-MM-DD format, return as-is
+  if (typeof dateValue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+    return dateValue;
+  }
+  
+  // If it's a Date object or string that can be parsed as date
+  try {
+    const date = new Date(dateValue);
+    if (isNaN(date.getTime())) {
+      return String(dateValue); // Return original if can't parse
+    }
+    
+    // Format as YYYY-MM-DD
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  } catch (error) {
+    return String(dateValue); // Return original if error
+  }
+}
+
+/**
  * Get configuration for a specific branch
  */
 function getCfg_(branch) {
@@ -340,11 +368,10 @@ function getClientIp(e) {
  * Create standardized JSON response
  */
 function createJsonResponse(data, statusCode = 200) {
-  const response = ContentService.createTextOutput(JSON.stringify(data))
+  // Google Apps Script handles CORS automatically for public web apps
+  // No need to manually set CORS headers - they cause errors
+  return ContentService.createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
-  
-  // CORS headers are automatically handled by Google Apps Script for web apps
-  return response;
 }
 
 /**
@@ -363,7 +390,7 @@ function doGet(e) {
     // Route to specific functions
     switch (params.fn) {
       case 'search':
-        return handleSearch(params.branch, params.phone);
+        return handleSearch(params.branch, params.member_id || params.phone);
       case 'schedules':
         return handleSchedules(params.branch);
       case 'status':
@@ -478,23 +505,31 @@ function doPost(e) {
  * Handle OPTIONS requests for CORS preflight
  */
 function doOptions(e) {
-  return createJsonResponse({}, 200);
+  // Google Apps Script handles CORS automatically for public web apps
+  // Simply return a ContentService response for OPTIONS requests
+  return ContentService.createTextOutput("")
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
- * Handle member search by phone number and branch (with caching)
+ * Handle member search by member_id or phone number and branch (with caching)
  */
-function handleSearch(branch, phone) {
-  if (!branch || !phone) {
-    return createJsonResponse({ ok: false, error: "Branch and phone are required" }, 400);
+function handleSearch(branch, searchValue) {
+  if (!branch || !searchValue) {
+    return createJsonResponse({ ok: false, error: "Branch and member_id are required" }, 400);
   }
 
   try {
-    const normalizedPhone = normalizePhone_(phone);
+    // Determine if searchValue is member_id or phone
+    const isPhoneSearch = /^[0-9+\-\s()]+$/.test(searchValue);
+    let normalizedPhone = '';
     
-    // Early validation - phone must be at least 9 digits
-    if (normalizedPhone.length < 9) {
-      return createJsonResponse({ ok: false, error: "Phone number too short" }, 400);
+    if (isPhoneSearch) {
+      normalizedPhone = normalizePhone_(searchValue);
+      // Early validation - phone must be at least 9 digits
+      if (normalizedPhone.length < 9) {
+        return createJsonResponse({ ok: false, error: "Phone number too short" }, 400);
+      }
     }
     
     const cfg = getCfg_(branch);
@@ -544,7 +579,7 @@ function handleSearch(branch, phone) {
             member_id: String(row[memberIdCol] || ''),
             branch: String(row[branchCol] || ''),
             name: String(row[nameCol] || ''),
-            birthdate: String(row[birthdateCol] || ''),
+            birthdate: formatDateToISO_(row[birthdateCol]),
             parent_name: String(row[parentNameCol] || ''),
             contact: contact,
             registration_status: String(row[registrationStatusCol] || ''),
@@ -563,15 +598,26 @@ function handleSearch(branch, phone) {
     const partialMatches = [];
     
     for (const member of memberData.members) {
-      const memberNormalizedPhone = member.normalized_contact;
-      
-      // Check for exact match first
-      if (memberNormalizedPhone === normalizedPhone) {
-        exactMatches.push(member);
-      }
-      // Check for partial match (member's phone contains search phone or vice versa)
-      else if (memberNormalizedPhone.includes(normalizedPhone) || normalizedPhone.includes(memberNormalizedPhone)) {
-        partialMatches.push(member);
+      if (isPhoneSearch) {
+        const memberNormalizedPhone = member.normalized_contact;
+        
+        // Check for exact match first
+        if (memberNormalizedPhone === normalizedPhone) {
+          exactMatches.push(member);
+        }
+        // Check for partial match (member's phone contains search phone or vice versa)
+        else if (memberNormalizedPhone.includes(normalizedPhone) || normalizedPhone.includes(memberNormalizedPhone)) {
+          partialMatches.push(member);
+        }
+      } else {
+        // Search by member_id
+        if (member.member_id === searchValue) {
+          exactMatches.push(member);
+        }
+        // Partial match for member_id (case-insensitive)
+        else if (member.member_id.toLowerCase().includes(searchValue.toLowerCase())) {
+          partialMatches.push(member);
+        }
       }
     }
     
