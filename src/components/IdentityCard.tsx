@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { User, Calendar, Phone, MapPin, X, CheckCircle, AlertCircle, Clock, RefreshCw } from 'lucide-react'
+import { User, Calendar, Phone, MapPin, X, CheckCircle, AlertCircle, Clock } from 'lucide-react'
 import { type Member } from '@/hooks'
 
 interface IdentityCardProps {
@@ -174,18 +174,7 @@ export function IdentityCard({ member, onClear, showClearButton = true, onMember
             <CardTitle>Member Identity</CardTitle>
           </div>
           <div className="flex items-center gap-2">
-            {onMemberUpdate && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={checkRegistrationStatus}
-                disabled={isCheckingStatus}
-                className="h-8 px-3"
-              >
-                <RefreshCw className={`h-4 w-4 mr-1 ${isCheckingStatus ? 'animate-spin' : ''}`} />
-                {isCheckingStatus ? 'Checking...' : 'Check Status'}
-              </Button>
-            )}
+
             {showClearButton && onClear && (
               <Button
                 variant="ghost"

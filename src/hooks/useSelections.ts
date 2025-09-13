@@ -150,19 +150,8 @@ export function useSelections(): UseSelectionsReturn {
 
   const getProgressText = useCallback((): string => {
     const validSelections = selections.filter(s => s !== null)
-    const totalText = `${validSelections.length}/${MAX_TOTAL_TOKENS} tokens`
-    const categoryCounts = getCategoryCounts()
-    
-    if (categoryCounts.length === 0) {
-      return totalText
-    }
-
-    const categoryTexts = categoryCounts.map(
-      ({ category, count }) => `${category} ${count}/${MAX_TOKENS_PER_CATEGORY}`
-    )
-
-    return `${totalText} • ${categoryTexts.join(' • ')}`
-  }, [selections, getCategoryCounts])
+    return `${validSelections.length}/${MAX_TOTAL_TOKENS} tokens`
+  }, [selections])
 
   const canAddMore = useCallback((): boolean => {
     const validSelections = selections.filter(s => s !== null)

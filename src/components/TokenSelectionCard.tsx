@@ -93,19 +93,19 @@ export function TokenSelectionCard({
   const shouldDisableBothSelections = hasSessionSelected && onlyOneCategorySlotRemains
 
   return (
-    <Card className={`w-full ${isComplete ? 'ring-2 ring-green-200' : ''}`}>
+    <Card className={`w-full min-w-0 ${isComplete ? 'ring-2 ring-green-200' : ''}`}>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              Token {tokenNumber}
+        <div className="flex items-center justify-between min-w-0 gap-2">
+          <div className="min-w-0 flex-1">
+            <CardTitle className="flex items-center gap-2 flex-wrap">
+              <span className="whitespace-nowrap">Token {tokenNumber}</span>
               {isComplete && (
-                <Badge variant="default" className="bg-green-600">
+                <Badge variant="default" className="bg-green-600 flex-shrink-0">
                   Selected
                 </Badge>
               )}
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-sm">
               Choose a category and session for this token
             </CardDescription>
           </div>
@@ -115,7 +115,7 @@ export function TokenSelectionCard({
               size="sm"
               onClick={handleClear}
               disabled={disabled}
-              className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+              className="h-8 w-8 p-0 text-red-500 hover:text-red-700 flex-shrink-0"
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -141,7 +141,7 @@ export function TokenSelectionCard({
               <SelectTrigger>
                 <SelectValue placeholder="Select a category..." />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-[200px] overflow-y-auto">
                 {allAvailableCategories.map((category) => {
                   const categorySchedules = getSchedulesByCategory(category)
                   const availableCount = categorySchedules.length
@@ -158,9 +158,9 @@ export function TokenSelectionCard({
                   
                   return (
                     <SelectItem key={category} value={category} disabled={!canSelect}>
-                      <div className="flex items-center justify-between w-full">
-                        <span className={!canSelect ? 'text-gray-400' : ''}>{category}</span>
-                        <div className="flex items-center gap-2 ml-2">
+                      <div className="flex items-center justify-between w-full min-w-0">
+                        <span className={`truncate ${!canSelect ? 'text-gray-400' : ''}`}>{category}</span>
+                        <div className="flex items-center gap-1 ml-2 flex-shrink-0">
                           {isMaxed ? (
                             <Badge variant="destructive" className="text-xs">
                               2/2 Tokens used
@@ -203,7 +203,7 @@ export function TokenSelectionCard({
                 <SelectTrigger>
                   <SelectValue placeholder="Select a session..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-[300px] overflow-y-auto">
                   {availableSessions.map((session) => {
                     const isAlreadySelected = selectedActivityIds.includes(session.activity_id)
                     const isCurrentSelection = selection?.activity_id === session.activity_id

@@ -40,10 +40,10 @@ export function ProgressBanner({
           </div>
 
           {/* Progress Text */}
-          <div className="text-center">
+          <div className="text-center w-full px-2">
             <Badge 
               variant={isComplete ? "default" : hasSelections ? "secondary" : "outline"}
-              className="text-sm px-3 py-1"
+              className="text-sm px-3 py-1 max-w-full break-words whitespace-normal text-center leading-relaxed sm:whitespace-nowrap sm:break-normal inline-block"
             >
               {progressText}
             </Badge>

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Toaster } from '@/components/ui/sonner'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
-import { RefreshCw, Wifi, WifiOff, Clock } from 'lucide-react'
+import { Wifi, WifiOff, Clock, RefreshCw } from 'lucide-react'
 import { 
   PhoneSearchCard, 
   IdentityCard, 
@@ -129,7 +129,7 @@ export default function RegistrationPage() {
     maxReached: count >= 2
   }))
   
-  const progressText = `${selections.length}/5 tokens`
+  const progressText = getProgressText()
   
   // Enhanced validation function
   const isValidSelections = () => {
@@ -239,8 +239,8 @@ export default function RegistrationPage() {
             <>
               <Separator />
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                     <h2 className="text-xl font-semibold text-gray-900">
                       Token Selections
                     </h2>
@@ -264,35 +264,43 @@ export default function RegistrationPage() {
                        )}
                      </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={toggleRealTime}
-                      className="flex items-center gap-2"
-                    >
-                      {isRealTimeEnabled ? (
-                        <>
-                          <WifiOff className="h-4 w-4" />
-                          Disable Live
-                        </>
-                      ) : (
-                        <>
-                          <Wifi className="h-4 w-4" />
-                          Enable Live
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => refetchSchedules(selectedBranch || undefined)}
-                      disabled={schedulesLoading || !selectedBranch}
-                      className="flex items-center gap-2"
-                    >
-                      <RefreshCw className={`h-4 w-4 ${schedulesLoading ? 'animate-spin' : ''}`} />
-                      Refresh
-                    </Button>
+                  <div className="grid grid-cols-2 gap-2 mobile-button-container">
+                    <div className="flex justify-center">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={toggleRealTime}
+                        className="flex items-center gap-2 min-w-0 flex-shrink-0 w-full justify-center"
+                      >
+                        {isRealTimeEnabled ? (
+                          <>
+                            <WifiOff className="h-4 w-4" />
+                            <span className="hidden sm:inline">Disable Live</span>
+                            <span className="sm:hidden">Live</span>
+                          </>
+                        ) : (
+                          <>
+                            <Wifi className="h-4 w-4" />
+                            <span className="hidden sm:inline">Enable Live</span>
+                            <span className="sm:hidden">Manual</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    
+                    <div className="flex justify-center">
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => refetchSchedules()}
+                        className="flex items-center gap-2 min-w-0 flex-shrink-0 hover:scale-105 active:scale-95 transition-transform w-full justify-center"
+                        disabled={schedulesLoading}
+                      >
+                        <RefreshCw className={`h-4 w-4 ${schedulesLoading ? 'animate-spin' : ''}`} />
+                        <span>Refresh Class</span>
+                      </Button>
+                    </div>
+
                   </div>
                 </div>
                 
@@ -302,7 +310,7 @@ export default function RegistrationPage() {
                   </div>
                 )}
                 
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 w-full max-w-none overflow-hidden">
                   {Array.from({ length: 5 }, (_, index) => {
                     const tokenNumber = index + 1
                     const selection = tokenSelections[index] || undefined // Convert null to undefined

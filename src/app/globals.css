@@ -3,6 +3,24 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Custom mobile-first responsive utilities */
+@media (max-width: 480px) {
+  .mobile-button-container {
+    @apply flex-col gap-3;
+  }
+  
+  .mobile-button-container > button {
+    @apply w-full justify-center;
+  }
+}
+
+/* Enhanced touch targets for mobile */
+@media (pointer: coarse) {
+  button[data-slot="button"] {
+    @apply min-h-[48px] min-w-[48px];
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
