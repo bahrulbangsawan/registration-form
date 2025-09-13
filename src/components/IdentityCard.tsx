@@ -93,7 +93,7 @@ export function IdentityCard({ member, onClear, showClearButton = true, onMember
       try {
         if (data.results && Array.isArray(data.results)) {
           // New format: results array
-          updatedMember = data.results.find((result: any) => 
+          updatedMember = data.results.find((result: Member) => 
             result && result.member_id === member.member_id
           )
         } else if (data.member && typeof data.member === 'object') {

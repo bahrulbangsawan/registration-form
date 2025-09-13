@@ -97,22 +97,26 @@ export function useSchedules(): UseSchedulesReturn {
 
         // Ensure activity_id is always a string and validate required fields
         const normalizedSchedules = rawItems
-          .filter((schedule: any) => {
+          .filter((schedule: unknown) => {
             // Filter out invalid schedule objects
-            return schedule && 
-                   typeof schedule === 'object' && 
-                   schedule.activity_id && 
-                   schedule.activity_name
+            const s = schedule as Record<string, unknown>
+            return s && 
+                   typeof s === 'object' && 
+                   s.activity_id && 
+                   s.activity_name
           })
-          .map((schedule: any) => ({
-            activity_id: String(schedule.activity_id || ''),
-            branch: String(schedule.branch || ''),
-            class_category: String(schedule.class_category || ''),
-            activity_name: String(schedule.activity_name || ''),
-            total_slot: Number(schedule.total_slot) || 0,
-            booked_slot: Number(schedule.booked_slot) || 0,
-            available_slot: Number(schedule.available_slot) || 0
-          }))
+          .map((schedule: unknown) => {
+            const s = schedule as Record<string, unknown>
+            return {
+              activity_id: String(s.activity_id || ''),
+              branch: String(s.branch || ''),
+              class_category: String(s.class_category || ''),
+              activity_name: String(s.activity_name || ''),
+              total_slot: Number(s.total_slot) || 0,
+              booked_slot: Number(s.booked_slot) || 0,
+              available_slot: Number(s.available_slot) || 0
+            }
+          })
 
         setSchedules(normalizedSchedules)
         setLastUpdated(new Date())

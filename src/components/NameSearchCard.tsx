@@ -175,7 +175,7 @@ export function PhoneSearchCard({ onMemberSelect, disabled = false }: PhoneSearc
         {!loading && canSearch && results.length === 0 && !error && (
           <Alert variant="destructive">
             <AlertDescription>
-              No members found with phone number "{formatPhoneDisplay(phoneNumber)}" in {selectedBranch.toUpperCase()} branch. Please check the number or try a different branch.
+              No members found with phone number &quot;{formatPhoneDisplay(phoneNumber)}&quot; in {selectedBranch.toUpperCase()} branch. Please check the number or try a different branch.
               <div className="mt-2">
                 <Button
                   onClick={handleSearch}
