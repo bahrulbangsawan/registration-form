@@ -67,6 +67,24 @@ function formatDateToISO_(dateValue) {
 }
 
 /**
+ * Format current timestamp to Jakarta timezone (GMT+7) in YYYY-MM-DD HH:MM:SS format
+ */
+function formatTimestampJakarta_() {
+  const now = new Date();
+  // Convert to Jakarta time (GMT+7)
+  const jakartaTime = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+  
+  const year = jakartaTime.getUTCFullYear();
+  const month = String(jakartaTime.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(jakartaTime.getUTCDate()).padStart(2, '0');
+  const hours = String(jakartaTime.getUTCHours()).padStart(2, '0');
+  const minutes = String(jakartaTime.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(jakartaTime.getUTCSeconds()).padStart(2, '0');
+  
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+/**
  * Get configuration for a specific branch
  */
 function getCfg_(branch) {
@@ -816,8 +834,6 @@ function handleSubmission(requestData) {
       // Cache successful result for idempotency
       if (result.ok) {
         CacheHelper.put(idempotencyKey, result, CACHE_TTL_IDEMPOTENCY);
-        // Invalidate schedule cache
-        CacheHelper.remove(CacheHelper.getSchedulesCacheKey(branch));
         Logger.log(branch, requestId, 'submission_success');
       } else {
         Logger.log(branch, requestId, 'submission_failed', { error: result.error });
@@ -1098,7 +1114,8 @@ function processRegistrationBatch(member, selections, scheduleData) {
       }
     }
     
-    // Prepare new form rows
+    // Prepare new form rows with timestamp in Jakarta timezone (GMT+7)
+    const currentTimestamp = formatTimestampJakarta_();
     const newFormRows = [];
     for (let i = 0; i < selections.length; i++) {
       const selection = selections[i];
@@ -1112,15 +1129,13 @@ function processRegistrationBatch(member, selections, scheduleData) {
         selection.activity_name,
         member.parent_name,
         member.contact,
-        tokenNumber
+        tokenNumber,
+        currentTimestamp
       ]);
     }
     
     // Batch append to form sheet
     BatchOperations.appendSheetData(cfg.FORM_SHEET_ID, cfg.FORM_SHEET_NAME, newFormRows);
-    
-    // Update schedule slots in batch
-    updateScheduleSlotsBatch(cfg, selections, member.branch, scheduleData);
     
     // Update member registration status
     updateMemberStatusBatch(cfg, member.member_id, 'submitted');
@@ -1133,64 +1148,7 @@ function processRegistrationBatch(member, selections, scheduleData) {
   }
 }
 
-/**
- * Update schedule slots using batch operations
- */
-function updateScheduleSlotsBatch(cfg, selections, branch, scheduleData) {
-  try {
-    const headers = scheduleData[0];
-    const activityIdCol = headers.indexOf('activity_id');
-    const bookedSlotCol = headers.indexOf('booked_slot');
-    const availableSlotCol = headers.indexOf('available_slot');
-    const totalSlotCol = headers.indexOf('total_slot');
-    const branchCol = headers.indexOf('branch');
-    
-    // Count selections per activity
-    const activityCounts = {};
-    for (const selection of selections) {
-      const activityId = selection.activity_id;
-      activityCounts[activityId] = (activityCounts[activityId] || 0) + 1;
-    }
-    
-    // Prepare batch updates
-    const updates = [];
-    
-    for (let i = 1; i < scheduleData.length; i++) {
-      const row = scheduleData[i];
-      const activityId = String(row[activityIdCol] || '');
-      const rowBranch = String(row[branchCol] || '').toLowerCase();
-      
-      if (rowBranch === branch.toLowerCase() && activityCounts[activityId]) {
-        const currentBooked = parseInt(row[bookedSlotCol]) || 0;
-        const totalSlot = parseInt(row[totalSlotCol]) || 0;
-        const newBooked = currentBooked + activityCounts[activityId];
-        const newAvailable = Math.max(0, totalSlot - newBooked);
-        
-        // Store update for this row
-        updates.push({
-          row: i + 1,
-          bookedCol: bookedSlotCol + 1,
-          availableCol: availableSlotCol + 1,
-          newBooked,
-          newAvailable
-        });
-      }
-    }
-    
-    // Apply batch updates
-    if (updates.length > 0) {
-      const sheet = SpreadsheetApp.openById(cfg.SCHEDULE_SHEET_ID).getSheetByName(cfg.SCHEDULE_SHEET_NAME);
-      
-      for (const update of updates) {
-        sheet.getRange(update.row, update.bookedCol).setValue(update.newBooked);
-        sheet.getRange(update.row, update.availableCol).setValue(update.newAvailable);
-      }
-    }
-    
-  } catch (error) {
-    console.error('updateScheduleSlotsBatch error:', error);
-  }
-}
+
 
 /**
  * Update member status using batch operations
@@ -1376,9 +1334,6 @@ function processQueuedSubmissionsForBranch(branch) {
             // Cache result for idempotency
             const idempotencyKey = CacheHelper.getIdempotencyCacheKey(item.requestId);
             CacheHelper.put(idempotencyKey, result, CACHE_TTL_IDEMPOTENCY);
-            
-            // Invalidate schedule cache
-            CacheHelper.remove(CacheHelper.getSchedulesCacheKey(branch));
             
             Logger.log(branch, item.requestId, 'queue_item_completed');
           } else {
