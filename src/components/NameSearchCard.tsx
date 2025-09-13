@@ -8,7 +8,7 @@ import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
-import { Search, User, Phone, MapPin } from 'lucide-react'
+import { Search, User, Phone, MapPin, CheckCircle } from 'lucide-react'
 import { useMemberSearch, type Member } from '@/hooks'
 
 interface PhoneSearchCardProps {
@@ -70,23 +70,17 @@ export function PhoneSearchCard({ onMemberSelect, disabled = false }: PhoneSearc
 
   return (
     <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Phone className="h-5 w-5" />
-          Phone Search
-        </CardTitle>
-        <CardDescription>
-          Select your branch and enter your phone number to start the registration process
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 pt-6">
         {/* Branch Selection */}
-         <div className="space-y-3">
-           <div className="text-sm font-medium flex items-center gap-2">
-             <MapPin className="h-4 w-4" />
-             Select Branch
-           </div>
-           <div className="flex gap-3">
+         <div className="space-y-2">
+            <div className="text-sm font-medium flex items-center gap-2">
+              <MapPin className="h-4 w-4" />
+              Select Branch
+            </div>
+            <div className="text-xs text-gray-500">
+              Choose your preferred location to search for your profile
+            </div>
+            <div className="flex gap-3 mt-3">
              <Button
                variant={selectedBranch === 'bsd' ? 'default' : 'outline'}
                onClick={() => handleBranchChange('bsd')}
@@ -111,6 +105,9 @@ export function PhoneSearchCard({ onMemberSelect, disabled = false }: PhoneSearc
            <div className="text-sm font-medium flex items-center gap-2">
              <Phone className="h-4 w-4" />
              Phone Number
+           </div>
+           <div className="text-xs text-gray-500">
+             Enter your registered phone number to find your profile
            </div>
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -208,8 +205,11 @@ export function PhoneSearchCard({ onMemberSelect, disabled = false }: PhoneSearc
                       <User className="h-4 w-4 text-gray-500" />
                       <div>
                         <div className="font-medium">{member.name}</div>
-                        <div className="text-sm text-gray-500">
-                          {member.branch} • {member.member_id}
+                        <div className="text-sm text-gray-500 flex items-center gap-2">
+                          {member.contact}
+                          {member.registration_status && (
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                          )}
                         </div>
                       </div>
                     </div>

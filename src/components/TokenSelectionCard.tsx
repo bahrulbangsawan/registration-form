@@ -217,15 +217,10 @@ export function TokenSelectionCard({
                         disabled={!canSelect}
                       >
                         <div className="space-y-2">
-                          <div className={`font-medium flex items-center gap-2 ${
+                          <div className={`font-medium ${
                             !canSelect ? 'text-gray-400' : ''
                           }`}>
                             {session.activity_name}
-                            {isAlreadySelected && !isCurrentSelection && (
-                              <Badge variant="destructive" className="text-xs">
-                                Already Selected
-                              </Badge>
-                            )}
                           </div>
                           <div className={`flex items-center gap-6 text-xs ${
                             !canSelect ? 'text-gray-300' : 'text-gray-500'
@@ -237,6 +232,11 @@ export function TokenSelectionCard({
                             <div className="flex items-center gap-1">
                               <Clock className="h-3 w-3" />
                               <span>{session.total_slot} total</span>
+                              {isAlreadySelected && !isCurrentSelection && (
+                                <Badge variant="destructive" className="text-xs ml-2">
+                                  Already Selected
+                                </Badge>
+                              )}
                             </div>
                           </div>
                         </div>
