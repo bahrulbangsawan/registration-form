@@ -4,6 +4,7 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  NEXT_PUBLIC_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwjYsmewg2fUb-m4ezQPg2SZMXVGzVTbjwV_0neML0I8ceYTb3Sgc8It77SjDG9JRlP/exec"
 
 [[redirects]]
   from = "/*"
