@@ -13,7 +13,7 @@
 
 Create a Google Sheet with these exact column headers in row 1:
 ```
-member_id | branch | name | birthdate | activity_name | parent_name | contact | token
+member_id | branch | name | birthdate | activity_name | parent_name | contact | token | timestamp
 ```
 
 **Column Descriptions:**
@@ -23,8 +23,9 @@ member_id | branch | name | birthdate | activity_name | parent_name | contact | 
 - `birthdate`: Date in YYYY-MM-DD format
 - `activity_name`: Full activity description (e.g., "Ministar Tennis - Tuesday, 03:00 pm")
 - `parent_name`: Parent/guardian name
-- `contact`: Contact number
-- `token`: Sequential token number (1-5)
+- `contact`: Phone number or contact information
+- `token`: Sequential token number for the member (1-5)
+- `timestamp`: Submission timestamp in YYYY-MM-DD HH:MM:SS format (automatically generated)
 
 ### 2. Create schedule Sheet
 
