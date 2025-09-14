@@ -4,6 +4,57 @@
  * Features: Batch operations, per-file locking, caching, queuing, optimistic concurrency
  */
 
+/**
+ * Create UI menu when spreadsheet opens
+ */
+function onOpen() {
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu('Term Registration')
+      .addItem('Open Registration', 'inactive')
+      .addItem('Close Registration', 'active')
+      .addToUi();
+}
+
+/**
+ * Activate registration closure (close registration)
+ * This closes registration - the frontend will show the overlay
+ */
+function active() {
+  // Set registration status to closed
+  PropertiesService.getScriptProperties().setProperty('REGISTRATION_STATUS', 'closed');
+  
+  SpreadsheetApp.getUi().alert('Registration has been closed. The website overlay will now be displayed to users.');
+  
+  // Log to both branches since this is a system-wide action
+  try {
+    Logger.log('bsd', null, 'registration_closed_via_ui', { timestamp: new Date().toISOString() });
+    Logger.log('kuningan', null, 'registration_closed_via_ui', { timestamp: new Date().toISOString() });
+  } catch (error) {
+    console.log('Failed to log registration status change:', error.message);
+  }
+}
+
+/**
+ * Deactivate registration closure (open registration)
+ * This opens registration - the frontend will hide the overlay
+ */
+function inactive() {
+  // Set registration status to open
+  PropertiesService.getScriptProperties().setProperty('REGISTRATION_STATUS', 'open');
+  
+  SpreadsheetApp.getUi().alert('Registration is now open! Users can submit registrations. The website overlay will be hidden.');
+  
+  // Log to both branches since this is a system-wide action
+  try {
+    Logger.log('bsd', null, 'registration_opened_via_ui', { timestamp: new Date().toISOString() });
+    Logger.log('kuningan', null, 'registration_opened_via_ui', { timestamp: new Date().toISOString() });
+  } catch (error) {
+    console.log('Failed to log registration status change:', error.message);
+  }
+}
+
+
+
 // Branch Configuration
 const CONFIG = {
   bsd: {
@@ -413,6 +464,8 @@ function doGet(e) {
         return handleSchedules(params.branch);
       case 'status':
         return handleStatusCheck(params.request_id);
+      case 'registration-status':
+        return handleRegistrationStatus();
       default:
         return createJsonResponse({ ok: false, error: "Invalid function parameter" }, 400);
     }
@@ -482,6 +535,57 @@ function handleSchedules(branch) {
     console.error('handleSchedules error:', error);
     Logger.log(branch, null, 'schedules_error', { error: error.message });
     return createJsonResponse({ ok: false, error: `Failed to fetch schedules: ${error.message}` }, 500);
+  }
+}
+
+/**
+ * Handle registration status request
+ * Returns whether registration is currently open or closed
+ */
+function handleRegistrationStatus() {
+  try {
+    // Check if registration is currently active by looking at a property or cache
+    // For now, we'll use a simple property-based approach
+    const properties = PropertiesService.getScriptProperties();
+    const registrationStatus = properties.getProperty('REGISTRATION_STATUS') || 'closed';
+    
+    const isOpen = registrationStatus === 'open';
+    
+    const response = {
+      ok: true,
+      isOpen: isOpen,
+      message: isOpen 
+        ? 'Registration is now open! Secure your spot today.'
+        : 'Registration will open soon. Get ready to secure your spot!',
+      lastChecked: new Date().toISOString()
+    };
+    
+    // Log to both branches since this is a system-wide status check
+    try {
+      Logger.log('bsd', null, 'registration_status_check', { status: registrationStatus, isOpen });
+      Logger.log('kuningan', null, 'registration_status_check', { status: registrationStatus, isOpen });
+    } catch (error) {
+      console.log('Failed to log registration status check:', error.message);
+    }
+    
+    return createJsonResponse(response);
+  } catch (error) {
+    console.error('handleRegistrationStatus error:', error);
+    // Log to both branches since this is a system-wide error
+    try {
+      Logger.log('bsd', null, 'registration_status_error', { error: error.message });
+      Logger.log('kuningan', null, 'registration_status_error', { error: error.message });
+    } catch (error) {
+      console.log('Failed to log registration status error:', error.message);
+    }
+    
+    // Return closed status on error as a safe default
+    return createJsonResponse({
+      ok: true,
+      isOpen: false,
+      message: 'Registration will open soon. Get ready to secure your spot!',
+      lastChecked: new Date().toISOString()
+    });
   }
 }
 

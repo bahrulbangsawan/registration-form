@@ -13,16 +13,21 @@ import {
   SubmitCard,
   WhatsAppButton 
 } from '@/components'
+import { RegistrationOverlay } from '@/components/RegistrationOverlay'
 import { 
   useSchedules, 
   useSelections, 
   type Member, 
   type Selection 
 } from '@/hooks'
+import { useRegistrationStatus } from '@/hooks/useRegistrationStatus'
 
 export default function RegistrationPage() {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null)
+  
+  // Registration status management
+  const { status } = useRegistrationStatus()
   
   const { 
     schedules, 
@@ -191,6 +196,12 @@ export default function RegistrationPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Registration Overlay */}
+      <RegistrationOverlay 
+        isVisible={!status.isOpen}
+        message={status.message}
+      />
+      
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         {/* Header */}
         <div className="text-center mb-8">
