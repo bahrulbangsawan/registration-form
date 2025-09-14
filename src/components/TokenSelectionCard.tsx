@@ -216,28 +216,28 @@ export function TokenSelectionCard({
                         className="py-4"
                         disabled={!canSelect}
                       >
-                        <div className="space-y-2">
-                          <div className={`font-medium ${
+                        <div className="space-y-2 w-full min-w-0">
+                          <div className={`font-medium leading-tight break-words ${
                             !canSelect ? 'text-gray-400' : ''
                           }`}>
                             {session.activity_name}
                           </div>
-                          <div className={`flex items-center gap-6 text-xs ${
+                          <div className={`flex flex-wrap items-center gap-3 sm:gap-6 text-xs ${
                             !canSelect ? 'text-gray-300' : 'text-gray-500'
                           }`}>
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1 shrink-0">
                               <Users className="h-3 w-3" />
                               <span>{session.available_slot} slots left</span>
                             </div>
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1 shrink-0">
                               <Clock className="h-3 w-3" />
                               <span>{session.total_slot} total</span>
-                              {isAlreadySelected && !isCurrentSelection && (
-                                <Badge variant="destructive" className="text-xs ml-2">
-                                  Already Selected
-                                </Badge>
-                              )}
                             </div>
+                            {isAlreadySelected && !isCurrentSelection && (
+                              <Badge variant="destructive" className="text-xs shrink-0">
+                                Already Selected
+                              </Badge>
+                            )}
                           </div>
                         </div>
                       </SelectItem>
